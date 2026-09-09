@@ -1,12 +1,22 @@
-import os, sqlite3, calendar
-from datetime import date
-import pandas as pd
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+import os
+import re
+import shutil
+import sqlite3
+import subprocess
+import tempfile
+import unicodedata
+from datetime import datetime
 
-DUOC_YELLOW='#F1B634'; DUOC_BLACK='#1A1A1A'; DUOC_GRAY='#666666'
+import pandas as pd
+from openpyxl import load_workbook
+
+DUOC_YELLOW = '#F1B634'
+DUOC_BLACK = '#1A1A1A'
+DUOC_GRAY = '#666666'
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_2027 = os.path.join(BASE_DIR, 'templates', 'Calendario_Academico_Base_2027.xlsx')
+
 
 def _df(con, year, version_id=None):
     if version_id is not None:
@@ -26,68 +36,167 @@ def _df(con, year, version_id=None):
       WHERE o.semester LIKE ? OR o.semester='TAV'
       ORDER BY g.id,a.id,o.semester''', con, params=(f'{year}%',))
 
+
+def _norm(text):
+    text = '' if text is None else str(text)
+    text = unicodedata.normalize('NFKD', text)
+    text = ''.join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r'\s+', ' ', text).strip().lower()
+
+
+def _excel_date(value):
+    if value in (None, '', '-'):
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.strptime(str(value)[:10], '%Y-%m-%d')
+
+
+def _build_occurrence_map(df):
+    out = {}
+    for _, row in df.iterrows():
+        out[(_norm(row['Actividad']), str(row['Semestre']))] = row
+    return out
+
+
+def _update_process_sheet(wb, df, year):
+    """Actualiza fechas en CA Procesos sin alterar formato, bordes, colores ni tamaños."""
+    ws = wb['CA Procesos']
+    occ = _build_occurrence_map(df)
+    semester_cols = {
+        'TAV': ('D', 'E'),
+        f'{year}-1': ('F', 'G'),
+        f'{year}-2': ('H', 'I'),
+    }
+    for row_num in range(8, ws.max_row + 1):
+        activity_name = ws[f'C{row_num}'].value
+        key_name = _norm(activity_name)
+        if not key_name:
+            continue
+        for sem, (start_col, end_col) in semester_cols.items():
+            item = occ.get((key_name, sem))
+            if item is None:
+                continue
+            start = _excel_date(item['Inicio'])
+            end = _excel_date(item['Término'])
+            # Si la ocurrencia existe, sus valores mandan. Para fecha ausente usamos celda vacía.
+            ws[f'{start_col}{row_num}'] = start
+            # Algunas actividades de un solo día usan celdas combinadas (Inicio-Término).
+            end_cell = ws[f'{end_col}{row_num}']
+            if end_cell.__class__.__name__ != 'MergedCell':
+                end_cell.value = end
+
+    # Mantener el título coherente para futuras plantillas derivadas.
+    if isinstance(ws['C2'].value, str):
+        ws['C2'] = re.sub(r'CALENDARIO ACADÉMICO\s+\d{4}', f'CALENDARIO ACADÉMICO {year}', ws['C2'].value)
+
+
+def _configure_printing(wb):
+    """Tres formatos, tres páginas: Procesos, Cronológico y Gráfico."""
+    if 'CA Gráfico 2025' in wb.sheetnames:
+        del wb['CA Gráfico 2025']
+
+    configs = {
+        'CA Procesos': ('portrait', 'C2:I69'),
+        'CA Cronológico': ('portrait', 'D2:F93'),
+        'CA Gráfico 2027': ('landscape', 'D5:AJ42'),
+    }
+    for name, (orientation, area) in configs.items():
+        if name not in wb.sheetnames:
+            continue
+        ws = wb[name]
+        ws.sheet_state = 'visible'
+        ws.print_area = area
+        ws.page_setup.orientation = orientation
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 1
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_margins.left = 0.15
+        ws.page_margins.right = 0.15
+        ws.page_margins.top = 0.20
+        ws.page_margins.bottom = 0.20
+        ws.page_margins.header = 0.10
+        ws.page_margins.footer = 0.10
+    wb.active = wb.sheetnames.index('CA Procesos') if 'CA Procesos' in wb.sheetnames else 0
+
+
+def _make_target_workbook(source_path, out_path, target_sheet):
+    """Conserva hojas de soporte para fórmulas, pero muestra solo el formato descargado."""
+    wb = load_workbook(source_path)
+    if 'CA Gráfico 2025' in wb.sheetnames:
+        del wb['CA Gráfico 2025']
+    for ws in wb.worksheets:
+        ws.sheet_state = 'visible' if ws.title == target_sheet else 'hidden'
+    wb.active = wb.sheetnames.index(target_sheet)
+    wb.save(out_path)
+
+
+def _libreoffice_pdf(xlsx_path, pdf_path):
+    exe = shutil.which('libreoffice') or shutil.which('soffice')
+    if not exe:
+        raise RuntimeError('LibreOffice no está instalado. En Streamlit Cloud debe existir packages.txt con libreoffice-calc.')
+    out_dir = os.path.dirname(pdf_path)
+    os.makedirs(out_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='lo_profile_') as profile:
+        profile_uri = 'file://' + profile
+        cmd = [
+            exe, '--headless', '--norestore', '--nofirststartwizard',
+            f'-env:UserInstallation={profile_uri}',
+            '--convert-to', 'pdf', '--outdir', out_dir, xlsx_path,
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
+        generated = os.path.join(out_dir, os.path.splitext(os.path.basename(xlsx_path))[0] + '.pdf')
+        if result.returncode != 0 or not os.path.exists(generated):
+            raise RuntimeError(f'No fue posible generar PDF con LibreOffice. {result.stdout[-1200:]}')
+        if os.path.abspath(generated) != os.path.abspath(pdf_path):
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+            os.replace(generated, pdf_path)
+
+
+def _prepare_exact_workbook(df, year, out_path):
+    if int(year) != 2027 or not os.path.exists(TEMPLATE_2027):
+        raise RuntimeError('El formato institucional exacto está configurado actualmente para el Calendario 2027.')
+    wb = load_workbook(TEMPLATE_2027)
+    _update_process_sheet(wb, df, year)
+    _configure_printing(wb)
+    # Fuerza recálculo de fórmulas al abrir con Excel/LibreOffice.
+    try:
+        wb.calculation.fullCalcOnLoad = True
+        wb.calculation.forceFullCalc = True
+        wb.calculation.calcMode = 'auto'
+    except Exception:
+        pass
+    wb.save(out_path)
+
+
 def export_all(db_path, year, version_no, out_dir='exports', version_id=None):
-    os.makedirs(out_dir,exist_ok=True)
-    con=sqlite3.connect(db_path)
-    df=_df(con,year,version_id)
-    paths=[]
-    p1=os.path.join(out_dir,f'CA_Procesos_{year}_V{version_no}.xlsx')
-    with pd.ExcelWriter(p1,engine='xlsxwriter') as w:
-        df.to_excel(w,index=False,sheet_name='CA Procesos'); _format_sheet(w,'CA Procesos',df)
-    paths.append(p1)
-    chrono=df.copy()
-    chrono['Orden']=pd.to_datetime(chrono['Inicio'],errors='coerce').fillna(pd.to_datetime(chrono['Término'],errors='coerce'))
-    chrono=chrono.sort_values(['Orden','Semestre','ID']).drop(columns=['Orden'])
-    p2=os.path.join(out_dir,f'CA_Cronologico_{year}_V{version_no}.xlsx')
-    with pd.ExcelWriter(p2,engine='xlsxwriter') as w:
-        chrono.to_excel(w,index=False,sheet_name='CA Cronológico'); _format_sheet(w,'CA Cronológico',chrono)
-    paths.append(p2)
-    p3=os.path.join(out_dir,f'CA_Grafico_{year}_V{version_no}.xlsx')
-    with pd.ExcelWriter(p3,engine='xlsxwriter') as w:
-        for month in range(1,13):
-            mname=f'{month:02d}-{calendar.month_name[month]}'
-            first=date(year,month,1); last=date(year,month,calendar.monthrange(year,month)[1]); rows=[]
-            for _,r in df.iterrows():
-                sd=pd.to_datetime(r['Inicio'],errors='coerce'); ed=pd.to_datetime(r['Término'],errors='coerce')
-                if pd.isna(sd) and pd.isna(ed): continue
-                sdate=sd.date() if not pd.isna(sd) else ed.date(); edate=ed.date() if not pd.isna(ed) else sd.date()
-                if sdate<=last and edate>=first:
-                    rows.append([r['Código'],r['Grupo'],r['Actividad'],r['Semestre'],r['Inicio'],r['Término']])
-            mdf=pd.DataFrame(rows,columns=['Código','Grupo','Actividad','Semestre','Inicio','Término'])
-            mdf.to_excel(w,index=False,sheet_name=mname[:31]); _format_sheet(w,mname[:31],mdf)
-    paths.append(p3)
-    pdf=os.path.join(out_dir,f'CA_Calendario_{year}_V{version_no}.pdf')
-    _pdf(pdf,year,version_no,chrono,df); paths.append(pdf)
-    con.close(); return paths
+    """
+    Genera los tres formatos originales de Excel y un PDF de tres páginas.
+    Página 1: CA Procesos (vertical)
+    Página 2: CA Cronológico (vertical)
+    Página 3: CA Gráfico 2027 (horizontal)
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    con = sqlite3.connect(db_path)
+    df = _df(con, year, version_id)
+    con.close()
 
-def _format_sheet(writer,sheet_name,df):
-    wb=writer.book; ws=writer.sheets[sheet_name]
-    hdr=wb.add_format({'bold':True,'bg_color':DUOC_YELLOW,'font_color':DUOC_BLACK,'border':1,'align':'center','valign':'vcenter'})
-    txt=wb.add_format({'border':1,'valign':'top','text_wrap':True})
-    for col,name in enumerate(df.columns): ws.write(0,col,name,hdr)
-    ws.freeze_panes(1,0)
-    if len(df.columns): ws.autofilter(0,0,max(len(df),1),len(df.columns)-1)
-    widths={'ID':7,'Código':12,'Grupo':30,'Actividad':58,'Semestre':12,'Inicio':13,'Término':13,'Observaciones':30}
-    for col,name in enumerate(df.columns): ws.set_column(col,col,widths.get(name,18),txt)
+    with tempfile.TemporaryDirectory(prefix='cal_export_') as tmp:
+        master = os.path.join(tmp, f'Calendario_{year}_V{version_no}_master.xlsx')
+        _prepare_exact_workbook(df, int(year), master)
 
-def _pdf(path,year,version,chrono,df):
-    doc=SimpleDocTemplate(path,pagesize=landscape(A4),leftMargin=24,rightMargin=24,topMargin=25,bottomMargin=25)
-    styles=getSampleStyleSheet(); story=[]
-    title=ParagraphStyle('title',parent=styles['Title'],fontName='Helvetica-Bold',fontSize=18,textColor=colors.HexColor(DUOC_BLACK))
-    sub=ParagraphStyle('sub',parent=styles['Normal'],fontName='Helvetica',fontSize=9,textColor=colors.HexColor(DUOC_GRAY))
-    story += [Paragraph(f'Calendario Académico {year} · V{version}',title),Paragraph('Versión publicada · formatos Procesos, Cronológico y vista mensual',sub),Spacer(1,12)]
-    data=[['Sem.','Grupo','Actividad','Inicio','Término']]
-    for _,r in chrono.iterrows(): data.append([r['Semestre'],r['Grupo'],Paragraph(str(r['Actividad']),styles['BodyText']),r['Inicio'] or '',r['Término'] or ''])
-    t=Table(data,colWidths=[48,120,360,70,70],repeatRows=1)
-    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor(DUOC_YELLOW)),('TEXTCOLOR',(0,0),(-1,0),colors.HexColor(DUOC_BLACK)),('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('GRID',(0,0),(-1,-1),0.3,colors.lightgrey),('VALIGN',(0,0),(-1,-1),'TOP'),('FONTSIZE',(0,0),(-1,-1),7),('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#F7F7F7')])]))
-    story.append(t); story.append(PageBreak()); story += [Paragraph('Vista gráfica mensual',title),Spacer(1,8)]
-    for month in range(1,13):
-        first=date(year,month,1); last=date(year,month,calendar.monthrange(year,month)[1]); items=[]
-        for _,r in df.iterrows():
-            sd=pd.to_datetime(r['Inicio'],errors='coerce'); ed=pd.to_datetime(r['Término'],errors='coerce')
-            if pd.isna(sd) and pd.isna(ed): continue
-            sdate=sd.date() if not pd.isna(sd) else ed.date(); edate=ed.date() if not pd.isna(ed) else sd.date()
-            if sdate<=last and edate>=first: items.append(f"{r['Código']} · {r['Actividad']} ({r['Inicio'] or '—'} a {r['Término'] or '—'})")
-        story.append(Paragraph(f'<b>{calendar.month_name[month]}</b>',styles['Heading3']))
-        story.append(Paragraph('<br/>'.join(items) if items else 'Sin actividades registradas.',sub)); story.append(Spacer(1,6))
-    doc.build(story)
+        p1 = os.path.join(out_dir, f'CA_Procesos_{year}_V{version_no}.xlsx')
+        p2 = os.path.join(out_dir, f'CA_Cronologico_{year}_V{version_no}.xlsx')
+        p3 = os.path.join(out_dir, f'CA_Grafico_{year}_V{version_no}.xlsx')
+        _make_target_workbook(master, p1, 'CA Procesos')
+        _make_target_workbook(master, p2, 'CA Cronológico')
+        _make_target_workbook(master, p3, 'CA Gráfico 2027')
+
+        # El PDF se genera desde un libro que contiene exactamente las tres hojas visibles.
+        pdf_book = os.path.join(tmp, f'Calendario_Academico_{year}_V{version_no}.xlsx')
+        shutil.copy2(master, pdf_book)
+        pdf = os.path.join(out_dir, f'CA_Calendario_{year}_V{version_no}.pdf')
+        _libreoffice_pdf(pdf_book, pdf)
+
+    return [p1, p2, p3, pdf]
