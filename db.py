@@ -84,11 +84,23 @@ def init_db():
       status TEXT NOT NULL, change_id INTEGER, created_at TEXT NOT NULL, published_at TEXT,
       UNIQUE(year,version_no), FOREIGN KEY(change_id) REFERENCES changes(id)
     );
+    CREATE TABLE IF NOT EXISTS version_occurrences(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, version_id INTEGER NOT NULL, occurrence_id INTEGER NOT NULL,
+      activity_id INTEGER NOT NULL, semester TEXT NOT NULL, start_date TEXT, end_date TEXT, period_label TEXT,
+      UNIQUE(version_id,occurrence_id), FOREIGN KEY(version_id) REFERENCES versions(id)
+    );
     CREATE TABLE IF NOT EXISTS audit_log(
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT NOT NULL, entity TEXT, entity_id INTEGER,
       detail TEXT, created_at TEXT NOT NULL
     );
     ''')
+    # Migraciones livianas para instalaciones ya existentes.
+    cols={r['name'] for r in c.execute('PRAGMA table_info(versions)').fetchall()}
+    if 'source' not in cols:
+        c.execute('ALTER TABLE versions ADD COLUMN source TEXT')
+    if 'description' not in cols:
+        c.execute('ALTER TABLE versions ADD COLUMN description TEXT')
+
     # Seed idempotente: seguro ante reinicios o inicializaciones concurrentes
     with open(SEED_PATH,encoding='utf-8') as f:
         seed=json.load(f)

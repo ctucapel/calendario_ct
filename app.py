@@ -86,6 +86,22 @@ def dependency_impacts(occ_id,new_start,new_end):
             impacts.append({'dependency_id':r['id'],'impacted_occurrence_id':impacted_occ,'activity_id':o['activity_id'],'code':o['code'],'name':o['name'],'semester':o['semester'],'old_slack':old,'new_slack':new,'description':r['description'] or ''})
     return impacts
 
+def snapshot_version(version_id):
+    """Guarda una fotografía inmutable de las fechas que componen una versión."""
+    execute("""INSERT OR REPLACE INTO version_occurrences(version_id,occurrence_id,activity_id,semester,start_date,end_date,period_label)
+               SELECT ?,id,activity_id,semester,start_date,end_date,period_label FROM occurrences""",(version_id,))
+
+def create_initial_version(user, year):
+    existing=query("SELECT id FROM versions WHERE year=? AND status='PUBLICADA' ORDER BY version_no LIMIT 1",(year,))
+    if existing: return None
+    now=datetime.now().isoformat(timespec='seconds')
+    vid=execute("""INSERT INTO versions(year,version_no,status,change_id,created_at,published_at,source,description)
+                   VALUES(?,1,'PUBLICADA',NULL,?,?,?,?)""",(year,now,now,'Carga inicial Excel','Versión base generada desde el calendario cargado originalmente.'))
+    snapshot_version(vid)
+    paths=export_all(DB_PATH,year,1,'exports',version_id=vid)
+    audit(user['id'],'GENERAR_VERSION_INICIAL','versions',vid,'; '.join(paths))
+    return vid
+
 def create_draft_version(change_id):
     ch=query('SELECT o.semester FROM changes c JOIN occurrences o ON o.id=c.occurrence_id WHERE c.id=?',(change_id,))[0]
     # El año se obtiene del semestre (ej. 2027-1) para soportar calendarios futuros.
@@ -194,15 +210,31 @@ def notifications(user):
             execute('UPDATE notifications SET read_at=? WHERE id=?',(datetime.now().isoformat(timespec='seconds'),r['id'])); st.rerun()
 
 def versions(user):
-    st.title('Versiones')
-    rows=query('SELECT * FROM versions ORDER BY year DESC,version_no DESC')
-    if rows: st.dataframe(pd.DataFrame([dict(r) for r in rows]),hide_index=True,use_container_width=True)
-    else: st.info('Aún no existen versiones.')
+    st.title('Versiones del Calendario Académico')
+    st.caption('Cada versión publicada conserva una fotografía de sus fechas, por lo que puede descargarse posteriormente sin alteraciones.')
+
+    years=[r['year'] for r in query("SELECT DISTINCT CAST(substr(semester,1,4) AS INTEGER) year FROM occurrences WHERE semester GLOB '[0-9][0-9][0-9][0-9]-*' ORDER BY year DESC") if r['year']]
+    if not years: years=[2027]
+
     if user['role']=='Administrador':
-        drafts=query("SELECT v.*,c.occurrence_id,c.new_start,c.new_end,a.code,a.name FROM versions v JOIN changes c ON c.id=v.change_id JOIN occurrences o ON o.id=c.occurrence_id JOIN activities a ON a.id=o.activity_id WHERE v.status='BORRADOR' ORDER BY v.version_no")
+        st.subheader('Versión base')
+        year=st.selectbox('Año del calendario',years,key='base_version_year')
+        existing=query("SELECT * FROM versions WHERE year=? AND status='PUBLICADA' ORDER BY version_no",(year,))
+        if not existing:
+            st.info(f'El calendario {year} aún no tiene una versión publicada. Puedes generar la V1 con las fechas actualmente cargadas desde el Excel base.')
+            if st.button(f'Generar V1 · Calendario {year}',type='primary'):
+                vid=create_initial_version(user,year)
+                if vid:
+                    st.success(f'V1 del Calendario Académico {year} generada correctamente. Ya están disponibles los cuatro formatos de descarga.')
+                    st.rerun()
+        else:
+            st.success(f'El calendario {year} ya cuenta con una versión base/publicada.')
+
+    drafts=query("SELECT v.*,c.occurrence_id,c.new_start,c.new_end,a.code,a.name FROM versions v JOIN changes c ON c.id=v.change_id JOIN occurrences o ON o.id=c.occurrence_id JOIN activities a ON a.id=o.activity_id WHERE v.status='BORRADOR' ORDER BY v.year,v.version_no")
+    if user['role']=='Administrador' and drafts:
         st.subheader('Borradores pendientes de aprobación final')
         for r in drafts:
-            with st.expander(f"V{r['version_no']} · cambio #{r['change_id']} · {r['code']} {r['name']}"):
+            with st.expander(f"{r['year']} · V{r['version_no']} · cambio #{r['change_id']} · {r['code']} {r['name']}"):
                 st.write(f"Fechas propuestas: **{r['new_start']}** a **{r['new_end']}**")
                 comment=st.text_input('Comentario administrador',key=f'vc{r["id"]}')
                 c1,c2=st.columns(2)
@@ -210,19 +242,37 @@ def versions(user):
                     execute('UPDATE occurrences SET start_date=?,end_date=? WHERE id=?',(r['new_start'],r['new_end'],r['occurrence_id']))
                     now=datetime.now().isoformat(timespec='seconds')
                     execute("UPDATE changes SET status='Publicado',admin_comment=?,updated_at=? WHERE id=?",(comment,now,r['change_id']))
-                    execute("UPDATE versions SET status='PUBLICADA',published_at=? WHERE id=?",(now,r['id']))
-                    paths=export_all(DB_PATH,r['year'],r['version_no'],'exports')
+                    execute("UPDATE versions SET status='PUBLICADA',published_at=?,source=COALESCE(source,'Cambio aprobado'),description=COALESCE(description,?) WHERE id=?",(now,f"Cambio #{r['change_id']} aprobado y publicado.",r['id']))
+                    snapshot_version(r['id'])
+                    paths=export_all(DB_PATH,r['year'],r['version_no'],'exports',version_id=r['id'])
                     audit(user['id'],'PUBLICAR_VERSION','versions',r['id'],'; '.join(paths)); st.success('Versión publicada y archivos generados.'); st.rerun()
                 if c2.button('Rechazar borrador',key=f'vr{r["id"]}'):
                     execute("UPDATE changes SET status='Rechazado por administrador',admin_comment=?,updated_at=? WHERE id=?",(comment,datetime.now().isoformat(timespec='seconds'),r['change_id']))
                     execute("UPDATE versions SET status='RECHAZADA' WHERE id=?",(r['id'],)); st.rerun()
+
     pubs=query("SELECT * FROM versions WHERE status='PUBLICADA' ORDER BY year DESC,version_no DESC")
-    if pubs:
-        st.subheader('Descargas')
-        v=pubs[0]; files=export_all(DB_PATH,v['year'],v['version_no'],'exports')
-        cols=st.columns(len(files))
-        for col,path in zip(cols,files):
-            with open(path,'rb') as f: col.download_button(os.path.basename(path),f.read(),file_name=os.path.basename(path))
+    st.subheader('Versiones publicadas')
+    if not pubs:
+        st.info('Aún no existen versiones publicadas.')
+        return
+    for v in pubs:
+        source=v['source'] if 'source' in v.keys() and v['source'] else ('Carga inicial Excel' if v['version_no']==1 and v['change_id'] is None else 'Cambio aprobado')
+        desc=v['description'] if 'description' in v.keys() and v['description'] else ''
+        when=v['published_at'] or v['created_at']
+        with st.expander(f"V{v['version_no']} · Calendario Académico {v['year']} · PUBLICADA",expanded=(v==pubs[0])):
+            st.write(f"**Fecha de publicación:** {when}")
+            st.write(f"**Origen:** {source}")
+            if desc: st.write(desc)
+            snap=query('SELECT COUNT(*) n FROM version_occurrences WHERE version_id=?',(v['id'],))[0]['n']
+            if snap==0:
+                # Compatibilidad con versiones antiguas creadas antes de incorporar snapshots.
+                snapshot_version(v['id'])
+            files=export_all(DB_PATH,v['year'],v['version_no'],'exports',version_id=v['id'])
+            labels=['CA Procesos','CA Cronológico','CA Gráfico','PDF']
+            cols=st.columns(4)
+            for col,path,label in zip(cols,files,labels):
+                with open(path,'rb') as f:
+                    col.download_button(label,f.read(),file_name=os.path.basename(path),key=f"download_{v['id']}_{label}",use_container_width=True)
 
 def users_admin(user):
     st.title('Mantenedor de usuarios')
