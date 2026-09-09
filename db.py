@@ -6,9 +6,10 @@ DB_PATH = os.getenv('CALENDAR_DB', os.path.join(BASE_DIR, 'calendar.db'))
 SEED_PATH = os.path.join(os.path.dirname(__file__), 'seed_data.json')
 
 def connect():
-    con = sqlite3.connect(DB_PATH, check_same_thread=False)
+    con = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
     con.row_factory = sqlite3.Row
     con.execute('PRAGMA foreign_keys=ON')
+    con.execute('PRAGMA busy_timeout=30000')
     return con
 
 def hash_password(password: str) -> str:
@@ -88,30 +89,33 @@ def init_db():
       detail TEXT, created_at TEXT NOT NULL
     );
     ''')
-    # Bootstrap seed only once
-    if c.execute('SELECT COUNT(*) n FROM activity_groups').fetchone()['n']==0:
-        with open(SEED_PATH,encoding='utf-8') as f: seed=json.load(f)
-        for g in seed['groups']: c.execute('INSERT INTO activity_groups(id,name) VALUES(?,?)',(g['id'],g['name']))
-        for a in seed['activities']:
-            c.execute('INSERT INTO activities(id,code,name,group_id,description,observations) VALUES(?,?,?,?,?,?)',
-                      (a['id'],a['code'],a['name'],a['group_id'],a['description'],a.get('observations','')))
-        for p in seed['periods']:
-            c.execute('INSERT OR IGNORE INTO periods(year,semester,start_date,end_date) VALUES(?,?,?,?)',
-                      (p['year'],p['semester'],p['start_date'],p['end_date']))
-        for o in seed['occurrences']:
-            c.execute('INSERT INTO occurrences(activity_id,semester,start_date,end_date,period_label) VALUES(?,?,?,?,?)',
-                      (o['activity_id'],o['semester'],o.get('start_date'),o.get('end_date'),o.get('period_label')))
-    if c.execute('SELECT COUNT(*) n FROM users').fetchone()['n']==0:
-        demo=[
-          ('Administrador','Calendario','admin@demo.cl','Administración','Administrador','Admin123!'),
-          ('Líder','Demo','lider@demo.cl','Unidad Académica','Líder','Lider123!'),
-          ('Visualizador','Demo','visual@demo.cl','Consulta','Visualizador','Visual123!')]
-        for fn,ln,email,unit,role,pwd in demo:
-            c.execute('INSERT INTO users(first_name,last_name,email,unit,role,password_hash) VALUES(?,?,?,?,?,?)',
-                      (fn,ln,email,unit,role,hash_password(pwd)))
-        leader_id=c.execute("SELECT id FROM users WHERE email='lider@demo.cl'").fetchone()['id']
-        # Demo leader can edit first three activities
-        for aid in (1,2,3): c.execute('INSERT INTO assignments(user_id,activity_id) VALUES(?,?)',(leader_id,aid))
+    # Seed idempotente: seguro ante reinicios o inicializaciones concurrentes
+    with open(SEED_PATH,encoding='utf-8') as f:
+        seed=json.load(f)
+    for g in seed['groups']:
+        c.execute('INSERT OR IGNORE INTO activity_groups(id,name) VALUES(?,?)',(g['id'],g['name']))
+    for a in seed['activities']:
+        c.execute('INSERT OR IGNORE INTO activities(id,code,name,group_id,description,observations) VALUES(?,?,?,?,?,?)',
+                  (a['id'],a['code'],a['name'],a['group_id'],a['description'],a.get('observations','')))
+    for p in seed['periods']:
+        c.execute('INSERT OR IGNORE INTO periods(year,semester,start_date,end_date) VALUES(?,?,?,?)',
+                  (p['year'],p['semester'],p['start_date'],p['end_date']))
+    for o in seed['occurrences']:
+        c.execute('INSERT OR IGNORE INTO occurrences(activity_id,semester,start_date,end_date,period_label) VALUES(?,?,?,?,?)',
+                  (o['activity_id'],o['semester'],o.get('start_date'),o.get('end_date'),o.get('period_label')))
+
+    demo=[
+      ('Administrador','Calendario','admin@demo.cl','Administración','Administrador','Admin123!'),
+      ('Líder','Demo','lider@demo.cl','Unidad Académica','Líder','Lider123!'),
+      ('Visualizador','Demo','visual@demo.cl','Consulta','Visualizador','Visual123!')]
+    for fn,ln,email,unit,role,pwd in demo:
+        c.execute('INSERT OR IGNORE INTO users(first_name,last_name,email,unit,role,password_hash) VALUES(?,?,?,?,?,?)',
+                  (fn,ln,email,unit,role,hash_password(pwd)))
+    leader_row=c.execute("SELECT id FROM users WHERE email='lider@demo.cl'").fetchone()
+    if leader_row:
+        leader_id=leader_row['id']
+        for aid in (1,2,3):
+            c.execute('INSERT OR IGNORE INTO assignments(user_id,activity_id) VALUES(?,?)',(leader_id,aid))
     con.commit(); con.close()
 
 def query(sql, params=()):
