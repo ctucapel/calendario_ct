@@ -1,0 +1,1081 @@
+{
+  "year": 2027,
+  "groups": [
+    {
+      "id": 1,
+      "name": "MATRÍCULAS"
+    },
+    {
+      "id": 2,
+      "name": "PERÍODO ACADÉMICO"
+    },
+    {
+      "id": 3,
+      "name": "INSCRIPCIÓN DE ASIGNATURAS"
+    },
+    {
+      "id": 4,
+      "name": "EXAMINACIONES"
+    },
+    {
+      "id": 5,
+      "name": "REGLAMENTARIOS"
+    },
+    {
+      "id": 6,
+      "name": "PASTORAL"
+    },
+    {
+      "id": 7,
+      "name": "ASUNTOS ESTUDIANTILES"
+    },
+    {
+      "id": 8,
+      "name": "FERIADOS, VÍSPERAS DE FERIADOS E INTERFERIADOS"
+    }
+  ],
+  "activities": [
+    {
+      "id": 1,
+      "code": "ACT-001",
+      "name": "Período Matrícula para Estudiantes de Inicio",
+      "description": "Período Matrícula para Estudiantes de Inicio",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 2,
+      "code": "ACT-002",
+      "name": "Período Postulación para Admisión Especial Externa",
+      "description": "Período Postulación para Admisión Especial Externa",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 3,
+      "code": "ACT-003",
+      "name": "Período Matrícula Admisión Especial Externa",
+      "description": "Período Matrícula Admisión Especial Externa",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 4,
+      "code": "ACT-004",
+      "name": "Período Postulación Cambios Internos (Admisión Especial Interna)",
+      "description": "Período Postulación Cambios Internos (Admisión Especial Interna)",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 5,
+      "code": "ACT-005",
+      "name": "Período Postulación Reincorporaciones y Reintegros",
+      "description": "Período Postulación Reincorporaciones y Reintegros",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 6,
+      "code": "ACT-006",
+      "name": "Período Matrícula Cambios Internos (Admisión Especial Interna)",
+      "description": "Período Matrícula Cambios Internos (Admisión Especial Interna)",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 7,
+      "code": "ACT-007",
+      "name": "Período Matrícula Reincorporaciones y Reintegros",
+      "description": "Período Matrícula Reincorporaciones y Reintegros",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 8,
+      "code": "ACT-008",
+      "name": "Período Ordinario de Matrícula para Estudiantes de Continuidad",
+      "description": "Período Ordinario de Matrícula para Estudiantes de Continuidad",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 9,
+      "code": "ACT-009",
+      "name": "Período Extraordinario de Matrícula para Estudiantes de Continuidad",
+      "description": "Período Extraordinario de Matrícula para Estudiantes de Continuidad",
+      "group_id": 1,
+      "observations": ""
+    },
+    {
+      "id": 10,
+      "code": "ACT-010",
+      "name": "Período de inscripción Semestre Cero Estudiantes de Inicio",
+      "description": "Período de inscripción Semestre Cero Estudiantes de Inicio",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 11,
+      "code": "ACT-011",
+      "name": "Período Inducción Estudiantes de Inicio (Semana cero)",
+      "description": "Período Inducción Estudiantes de Inicio (Semana cero)",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 12,
+      "code": "ACT-012",
+      "name": "Período de Preparación y Coordinación Académica",
+      "description": "Período de Preparación y Coordinación Académica",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 13,
+      "code": "ACT-013",
+      "name": "Período de Clases Temporada Académica Ordinaria",
+      "description": "Período de Clases Temporada Académica Ordinaria",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 14,
+      "code": "ACT-014",
+      "name": "Período de Clases Temporada Académica Extraordinaria de Verano",
+      "description": "Período de Clases Temporada Académica Extraordinaria de Verano",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 15,
+      "code": "ACT-015",
+      "name": "Cierre Académico y Término del Semestre",
+      "description": "Cierre Académico y Término del Semestre",
+      "group_id": 2,
+      "observations": ""
+    },
+    {
+      "id": 16,
+      "code": "ACT-016",
+      "name": "Período Ordinario de Inscripción de Asignaturas",
+      "description": "Período Ordinario de Inscripción de Asignaturas",
+      "group_id": 3,
+      "observations": ""
+    },
+    {
+      "id": 17,
+      "code": "ACT-017",
+      "name": "Período Modificación de Carga Académica Online (Estudiantes)",
+      "description": "Período Modificación de Carga Académica Online (Estudiantes)",
+      "group_id": 3,
+      "observations": ""
+    },
+    {
+      "id": 18,
+      "code": "ACT-018",
+      "name": "Período Modificación de Carga Académica (Asistido)",
+      "description": "Período Modificación de Carga Académica (Asistido)",
+      "group_id": 3,
+      "observations": ""
+    },
+    {
+      "id": 19,
+      "code": "ACT-019",
+      "name": "Período Extraordinario de Inscripción de Asignaturas",
+      "description": "Período Extraordinario de Inscripción de Asignaturas",
+      "group_id": 3,
+      "observations": ""
+    },
+    {
+      "id": 20,
+      "code": "ACT-020",
+      "name": "Plazo acreditación estudiante cuidador para acceder a la prioridad de inscripción de asignatura 2027",
+      "description": "Plazo acreditación estudiante cuidador para acceder a la prioridad de inscripción de asignatura 2027",
+      "group_id": 3,
+      "observations": ""
+    },
+    {
+      "id": 21,
+      "code": "ACT-021",
+      "name": "Período de Diagnóstico de Competencias Básicas, TICs y Test de Competencias Globales",
+      "description": "Período de Diagnóstico de Competencias Básicas, TICs y Test de Competencias Globales",
+      "group_id": 4,
+      "observations": ""
+    },
+    {
+      "id": 22,
+      "code": "ACT-022",
+      "name": "Período Extraordinario de Diagnóstico de Competencias Básicas, TICs y Test de Competencias Globales",
+      "description": "Período Extraordinario de Diagnóstico de Competencias Básicas, TICs y Test de Competencias Globales",
+      "group_id": 4,
+      "observations": ""
+    },
+    {
+      "id": 23,
+      "code": "ACT-023",
+      "name": "Encuesta Docente",
+      "description": "Encuesta Docente",
+      "group_id": 4,
+      "observations": ""
+    },
+    {
+      "id": 24,
+      "code": "ACT-024",
+      "name": "Período de Exámenes",
+      "description": "Período de Exámenes",
+      "group_id": 4,
+      "observations": ""
+    },
+    {
+      "id": 25,
+      "code": "ACT-025",
+      "name": "Período de Apelación para Estudiantes con Causal de Eliminación",
+      "description": "Período de Apelación para Estudiantes con Causal de Eliminación",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 26,
+      "code": "ACT-026",
+      "name": "Período para Suspensión Académica del Semestre",
+      "description": "Período para Suspensión Académica del Semestre",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 27,
+      "code": "ACT-027",
+      "name": "Período para Retiro de Asignaturas",
+      "description": "Período para Retiro de Asignaturas",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 28,
+      "code": "ACT-028",
+      "name": "Período para solicitud de nota pendiente (postergación de calificación)",
+      "description": "Período para solicitud de nota pendiente (postergación de calificación)",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 29,
+      "code": "ACT-029",
+      "name": "Estado de reprobación por Inasistencia",
+      "description": "Estado de reprobación por Inasistencia",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 30,
+      "code": "ACT-030",
+      "name": "Período para Suspensión Académica Extraordinaria del Semestre para estudiantes cuidadores",
+      "description": "Período para Suspensión Académica Extraordinaria del Semestre para estudiantes cuidadores",
+      "group_id": 5,
+      "observations": ""
+    },
+    {
+      "id": 31,
+      "code": "ACT-031",
+      "name": "Misiones Solidarias",
+      "description": "Misiones Solidarias",
+      "group_id": 6,
+      "observations": ""
+    },
+    {
+      "id": 32,
+      "code": "ACT-032",
+      "name": "Semana de asesoría académica y progresión",
+      "description": "Semana de asesoría académica y progresión",
+      "group_id": 7,
+      "observations": ""
+    },
+    {
+      "id": 33,
+      "code": "ACT-033",
+      "name": "Elección de  consejeros de carrera",
+      "description": "Elección de  consejeros de carrera",
+      "group_id": 7,
+      "observations": ""
+    },
+    {
+      "id": 34,
+      "code": "ACT-034",
+      "name": "Investiduras Consejeros de Carrera",
+      "description": "Investiduras Consejeros de Carrera",
+      "group_id": 7,
+      "observations": ""
+    },
+    {
+      "id": 35,
+      "code": "ACT-035",
+      "name": "Feriado Año Nuevo",
+      "description": "Feriado Año Nuevo",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 36,
+      "code": "ACT-036",
+      "name": "Víspera de Feriado Semana Santa - Media Jornada Académica (13:00 hrs.)",
+      "description": "Víspera de Feriado Semana Santa - Media Jornada Académica (13:00 hrs.)",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 37,
+      "code": "ACT-037",
+      "name": "Feriado Semana Santa (Viernes Santo y Sábado Santo)",
+      "description": "Feriado Semana Santa (Viernes Santo y Sábado Santo)",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 38,
+      "code": "ACT-038",
+      "name": "Feriado Día del Trabajador",
+      "description": "Feriado Día del Trabajador",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 39,
+      "code": "ACT-039",
+      "name": "Feriado Día de las Glorias Navales",
+      "description": "Feriado Día de las Glorias Navales",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 40,
+      "code": "ACT-040",
+      "name": "Feriado Día Nacional de los Pueblos Indígenas",
+      "description": "Feriado Día Nacional de los Pueblos Indígenas",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 41,
+      "code": "ACT-041",
+      "name": "Feriado San Pedro y San Pablo",
+      "description": "Feriado San Pedro y San Pablo",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 42,
+      "code": "ACT-042",
+      "name": "Feriado Día de la Virgen del Carmen",
+      "description": "Feriado Día de la Virgen del Carmen",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 43,
+      "code": "ACT-043",
+      "name": "Feriado Día de la Asunción de la Virgen",
+      "description": "Feriado Día de la Asunción de la Virgen",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 44,
+      "code": "ACT-044",
+      "name": "Víspera de Feriado Fiestas Patrias - Media Jornada Académica (13:00 hrs.)",
+      "description": "Víspera de Feriado Fiestas Patrias - Media Jornada Académica (13:00 hrs.)",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 45,
+      "code": "ACT-045",
+      "name": "Feriado adicional de Fiestas Patrias",
+      "description": "Feriado adicional de Fiestas Patrias",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 46,
+      "code": "ACT-046",
+      "name": "Feriado Fiestas Patrias - Independencia de Chile | Glorias del Ejército",
+      "description": "Feriado Fiestas Patrias - Independencia de Chile | Glorias del Ejército",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 47,
+      "code": "ACT-047",
+      "name": "Feriado Encuentro de Dos Mundos",
+      "description": "Feriado Encuentro de Dos Mundos",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 48,
+      "code": "ACT-048",
+      "name": "Feriado Día de las Iglesias Evangélicas y Protestantes",
+      "description": "Feriado Día de las Iglesias Evangélicas y Protestantes",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 49,
+      "code": "ACT-049",
+      "name": "Feriado Día de Todos los Santos",
+      "description": "Feriado Día de Todos los Santos",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 50,
+      "code": "ACT-050",
+      "name": "Aniversario Duoc UC - Suspensión de actividades académicas a partir de las 15:15 Hrs., incluida jornada vespertina.",
+      "description": "Aniversario Duoc UC - Suspensión de actividades académicas a partir de las 15:15 Hrs., incluida jornada vespertina.",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 51,
+      "code": "ACT-051",
+      "name": "Feriado Inmaculada Concepción de la Virgen",
+      "description": "Feriado Inmaculada Concepción de la Virgen",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 52,
+      "code": "ACT-052",
+      "name": "Víspera de Feriado Navidad - Media Jornada Académica (13:00 hrs.)",
+      "description": "Víspera de Feriado Navidad - Media Jornada Académica (13:00 hrs.)",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 53,
+      "code": "ACT-053",
+      "name": "Feriado Día de Navidad",
+      "description": "Feriado Día de Navidad",
+      "group_id": 8,
+      "observations": ""
+    },
+    {
+      "id": 54,
+      "code": "ACT-054",
+      "name": "Víspera de Feriado Año Nuevo - Media Jornada Académica (13:00 hrs.)",
+      "description": "Víspera de Feriado Año Nuevo - Media Jornada Académica (13:00 hrs.)",
+      "group_id": 8,
+      "observations": ""
+    }
+  ],
+  "occurrences": [
+    {
+      "activity_id": 1,
+      "semester": "2027-1",
+      "start_date": "2026-10-07",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 2,
+      "semester": "2027-1",
+      "start_date": "2026-11-02",
+      "end_date": "2027-02-27",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 2,
+      "semester": "2027-2",
+      "start_date": "2027-05-03",
+      "end_date": "2027-07-31",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 3,
+      "semester": "2027-1",
+      "start_date": "2026-11-02",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 3,
+      "semester": "2027-2",
+      "start_date": "2027-05-03",
+      "end_date": "2027-08-09",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 4,
+      "semester": "2027-1",
+      "start_date": "2026-12-28",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 4,
+      "semester": "2027-2",
+      "start_date": "2027-07-26",
+      "end_date": "2027-08-07",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 5,
+      "semester": "2027-1",
+      "start_date": "2026-11-02",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 5,
+      "semester": "2027-2",
+      "start_date": "2027-06-07",
+      "end_date": "2027-08-07",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 6,
+      "semester": "2027-1",
+      "start_date": "2026-12-28",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 6,
+      "semester": "2027-2",
+      "start_date": "2027-07-26",
+      "end_date": "2027-08-09",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 7,
+      "semester": "2027-1",
+      "start_date": "2026-11-02",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 7,
+      "semester": "2027-2",
+      "start_date": "2027-06-07",
+      "end_date": "2027-08-09",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 8,
+      "semester": "2027-1",
+      "start_date": "2026-12-01",
+      "end_date": "2027-01-09",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 8,
+      "semester": "2027-2",
+      "start_date": "2027-07-01",
+      "end_date": "2027-07-24",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 9,
+      "semester": "2027-1",
+      "start_date": "2027-01-11",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 9,
+      "semester": "2027-2",
+      "start_date": "2027-07-26",
+      "end_date": "2027-08-09",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 10,
+      "semester": "2027-1",
+      "start_date": "2026-10-19",
+      "end_date": "2027-02-26",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 11,
+      "semester": "2027-1",
+      "start_date": "2027-03-01",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 12,
+      "semester": "2027-1",
+      "start_date": "2027-03-01",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 12,
+      "semester": "2027-2",
+      "start_date": "2027-08-02",
+      "end_date": "2027-08-07",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 13,
+      "semester": "2027-1",
+      "start_date": "2027-03-08",
+      "end_date": "2027-07-20",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 13,
+      "semester": "2027-2",
+      "start_date": "2027-08-09",
+      "end_date": "2027-12-21",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 14,
+      "semester": "TAV",
+      "start_date": "2027-01-04",
+      "end_date": "2027-02-05",
+      "period_label": "TAV"
+    },
+    {
+      "activity_id": 15,
+      "semester": "TAV",
+      "start_date": "2027-02-08",
+      "end_date": null,
+      "period_label": "TAV"
+    },
+    {
+      "activity_id": 15,
+      "semester": "2027-1",
+      "start_date": "2027-07-21",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 15,
+      "semester": "2027-2",
+      "start_date": "2027-12-22",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 16,
+      "semester": "TAV",
+      "start_date": "2026-12-28",
+      "end_date": "2026-12-30",
+      "period_label": "TAV"
+    },
+    {
+      "activity_id": 16,
+      "semester": "2027-1",
+      "start_date": "2027-01-11",
+      "end_date": "2027-01-14",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 16,
+      "semester": "2027-2",
+      "start_date": "2027-07-26",
+      "end_date": "2027-07-29",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 17,
+      "semester": "TAV",
+      "start_date": "2026-12-31",
+      "end_date": "2027-01-03",
+      "period_label": "TAV"
+    },
+    {
+      "activity_id": 17,
+      "semester": "2027-1",
+      "start_date": "2027-01-15",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 17,
+      "semester": "2027-2",
+      "start_date": "2027-07-30",
+      "end_date": "2027-08-07",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 18,
+      "semester": "TAV",
+      "start_date": "2026-12-31",
+      "end_date": "2027-01-06",
+      "period_label": "TAV"
+    },
+    {
+      "activity_id": 18,
+      "semester": "2027-1",
+      "start_date": "2027-01-15",
+      "end_date": "2027-03-08",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 18,
+      "semester": "2027-2",
+      "start_date": "2027-07-30",
+      "end_date": "2027-08-09",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 19,
+      "semester": "2027-1",
+      "start_date": "2027-01-15",
+      "end_date": "2027-03-10",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 19,
+      "semester": "2027-2",
+      "start_date": "2027-07-30",
+      "end_date": "2027-08-11",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 20,
+      "semester": "2027-1",
+      "start_date": "2026-12-18",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 20,
+      "semester": "2027-2",
+      "start_date": "2027-07-17",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 21,
+      "semester": "2027-1",
+      "start_date": "2027-03-08",
+      "end_date": "2027-03-20",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 22,
+      "semester": "2027-1",
+      "start_date": "2027-03-29",
+      "end_date": "2027-04-03",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 23,
+      "semester": "2027-1",
+      "start_date": "2027-05-24",
+      "end_date": "2027-06-12",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 23,
+      "semester": "2027-2",
+      "start_date": "2027-10-25",
+      "end_date": "2027-11-13",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 24,
+      "semester": "2027-1",
+      "start_date": "2027-07-05",
+      "end_date": "2027-07-20",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 24,
+      "semester": "2027-2",
+      "start_date": "2027-12-06",
+      "end_date": "2027-12-21",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 25,
+      "semester": "2027-1",
+      "start_date": "2026-12-24",
+      "end_date": "2027-03-06",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 25,
+      "semester": "2027-2",
+      "start_date": "2027-07-22",
+      "end_date": "2027-08-07",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 26,
+      "semester": "2027-1",
+      "start_date": "2026-12-24",
+      "end_date": "2027-03-22",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 26,
+      "semester": "2027-2",
+      "start_date": "2027-07-23",
+      "end_date": "2027-08-23",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 27,
+      "semester": "2027-1",
+      "start_date": "2027-03-08",
+      "end_date": "2027-04-10",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 27,
+      "semester": "2027-2",
+      "start_date": "2027-08-09",
+      "end_date": "2027-09-11",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 28,
+      "semester": "2027-1",
+      "start_date": "2027-06-07",
+      "end_date": "2027-07-20",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 28,
+      "semester": "2027-2",
+      "start_date": "2027-11-08",
+      "end_date": "2027-12-21",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 29,
+      "semester": "2027-1",
+      "start_date": "2027-07-03",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 29,
+      "semester": "2027-2",
+      "start_date": "2027-12-04",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 30,
+      "semester": "2027-1",
+      "start_date": "2027-07-03",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 30,
+      "semester": "2027-2",
+      "start_date": "2027-12-04",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 31,
+      "semester": "2027-1",
+      "start_date": "2027-01-04",
+      "end_date": "2027-01-10",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 31,
+      "semester": "2027-2",
+      "start_date": "2027-07-21",
+      "end_date": "2027-07-27",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 32,
+      "semester": "2027-1",
+      "start_date": "2027-04-05",
+      "end_date": "2027-04-10",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 32,
+      "semester": "2027-2",
+      "start_date": "2027-09-06",
+      "end_date": "2027-09-11",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 33,
+      "semester": "2027-1",
+      "start_date": "2027-04-14",
+      "end_date": "2027-04-17",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 34,
+      "semester": "2027-1",
+      "start_date": "2027-04-26",
+      "end_date": "2027-05-01",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 35,
+      "semester": "2027-1",
+      "start_date": "2027-01-01",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 36,
+      "semester": "2027-1",
+      "start_date": "2027-03-25",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 37,
+      "semester": "2027-1",
+      "start_date": "2027-03-26",
+      "end_date": "2027-03-27",
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 38,
+      "semester": "2027-1",
+      "start_date": "2027-05-01",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 39,
+      "semester": "2027-1",
+      "start_date": "2027-05-21",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 40,
+      "semester": "2027-1",
+      "start_date": "2027-06-21",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 41,
+      "semester": "2027-1",
+      "start_date": "2027-06-28",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 42,
+      "semester": "2027-1",
+      "start_date": "2027-07-16",
+      "end_date": null,
+      "period_label": "2027-1"
+    },
+    {
+      "activity_id": 43,
+      "semester": "2027-2",
+      "start_date": "2027-08-15",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 44,
+      "semester": "2027-2",
+      "start_date": "2027-09-16",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 45,
+      "semester": "2027-2",
+      "start_date": "2027-09-17",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 46,
+      "semester": "2027-2",
+      "start_date": "2027-09-18",
+      "end_date": "2027-09-19",
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 47,
+      "semester": "2027-2",
+      "start_date": "2027-10-11",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 48,
+      "semester": "2027-2",
+      "start_date": "2027-10-31",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 49,
+      "semester": "2027-2",
+      "start_date": "2027-11-01",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 50,
+      "semester": "2027-2",
+      "start_date": "2027-11-11",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 51,
+      "semester": "2027-2",
+      "start_date": "2027-12-08",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 52,
+      "semester": "2027-2",
+      "start_date": "2027-12-24",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 53,
+      "semester": "2027-2",
+      "start_date": "2027-12-25",
+      "end_date": null,
+      "period_label": "2027-2"
+    },
+    {
+      "activity_id": 54,
+      "semester": "2027-2",
+      "start_date": "2027-12-31",
+      "end_date": null,
+      "period_label": "2027-2"
+    }
+  ],
+  "periods": [
+    {
+      "year": 2027,
+      "semester": "TAV",
+      "start_date": "2027-01-01",
+      "end_date": "2027-02-28"
+    },
+    {
+      "year": 2027,
+      "semester": "2027-1",
+      "start_date": "2027-01-01",
+      "end_date": "2027-07-31"
+    },
+    {
+      "year": 2027,
+      "semester": "2027-2",
+      "start_date": "2027-07-01",
+      "end_date": "2027-12-31"
+    }
+  ]
+}
