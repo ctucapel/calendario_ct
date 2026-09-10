@@ -138,6 +138,26 @@ def init_db():
         c.execute('INSERT INTO holidays(id,year,day,month,day_type) SELECT id,2027,day,month,day_type FROM holidays_legacy')
         c.execute('DROP TABLE holidays_legacy')
 
+    # Migración V5.5: permite un comentario por usuario y actividad/periodo.
+    # Versiones anteriores tenían UNIQUE(occurrence_id), lo que impedía comentarios
+    # independientes cuando existía más de un líder responsable.
+    oc_sql=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='occurrence_comments'").fetchone()
+    if oc_sql and 'occurrence_id INTEGER NOT NULL UNIQUE' in (oc_sql['sql'] or ''):
+        c.executescript('''
+        ALTER TABLE occurrence_comments RENAME TO occurrence_comments_legacy;
+        CREATE TABLE occurrence_comments(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, occurrence_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+          comment TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          FOREIGN KEY(occurrence_id) REFERENCES occurrences(id), FOREIGN KEY(user_id) REFERENCES users(id),
+          UNIQUE(occurrence_id,user_id)
+        );
+        INSERT OR IGNORE INTO occurrence_comments(id,occurrence_id,user_id,comment,created_at,updated_at)
+        SELECT id,occurrence_id,user_id,comment,created_at,updated_at FROM occurrence_comments_legacy;
+        DROP TABLE occurrence_comments_legacy;
+        ''')
+    else:
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_occurrence_comment_user ON occurrence_comments(occurrence_id,user_id)')
+
     # Migración V5.2: agrega tipo de feriado (Permanente/Variable).
     holiday_cols={r['name'] for r in c.execute('PRAGMA table_info(holidays)').fetchall()}
     if holiday_cols and 'holiday_type' not in holiday_cols:

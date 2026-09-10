@@ -62,6 +62,25 @@ def d(v):
 
 def s(v): return v.isoformat() if isinstance(v,date) else v
 
+
+def _period_suffix(semester):
+    txt=str(semester or '').strip().upper()
+    if txt=='TAV': return 'T'
+    if txt.endswith('-1'): return '1'
+    if txt.endswith('-2'): return '2'
+    if '-' in txt: return txt.rsplit('-',1)[-1]
+    return txt or 'X'
+
+def _occurrence_code(base_code, semester):
+    return f"{base_code}-{_period_suffix(semester)}"
+
+def _activity_period_codes(activity_id, base_code=None):
+    if base_code is None:
+        rr=query('SELECT code FROM activities WHERE id=?',(activity_id,))
+        base_code=rr[0]['code'] if rr else ''
+    sems=[r['semester'] for r in query('SELECT semester FROM occurrences WHERE activity_id=? ORDER BY semester',(activity_id,))]
+    return [_occurrence_code(base_code,sem) for sem in sems] or [base_code]
+
 def rule_slack(rule, override_occ=None, new_start=None, new_end=None):
     src=query('SELECT * FROM occurrences WHERE id=?',(rule['source_occurrence_id'],))[0]
     tgt=query('SELECT * FROM occurrences WHERE id=?',(rule['target_occurrence_id'],))[0]
@@ -158,7 +177,7 @@ def _is_nonworking(value):
 
 def _style_calendar_dates(df, columns):
     def style(v):
-        try: return 'color:#d00000;font-weight:700' if _is_nonworking(v) else ''
+        try: return 'color:#d00000;background-color:#fff0f0;font-weight:700' if _is_nonworking(v) else ''
         except Exception: return ''
     sty=df.style
     for col in columns:
@@ -353,29 +372,47 @@ def dashboard(user):
     notif=query('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND read_at IS NULL',(user['id'],))[0]['n']
     pub=query("SELECT version_no,published_at FROM versions WHERE status='PUBLICADA' ORDER BY year DESC,version_no DESC LIMIT 1")
     own=query('SELECT COUNT(*) n FROM assignments WHERE user_id=?',(user['id'],))[0]['n'] if user['role']=='Líder' else query('SELECT COUNT(*) n FROM activities WHERE active=1')[0]['n']
+    st.markdown("""<style>
+    .dashboard-card-label{font-size:.88rem;color:#6b7280;margin-bottom:4px}
+    .dashboard-card-value{font-size:2rem;font-weight:700;line-height:1.15;color:#252b36}
+    </style>""",unsafe_allow_html=True)
     c1,c2,c3,c4=st.columns(4)
     with c1:
-        st.caption('Actividades asignadas' if user['role']=='Líder' else 'Actividades activas')
-        if user['role']=='Líder':
-            def _open_assigned():
-                st.session_state.calendar_assigned_only=True
-                st.session_state.nav_page='Calendario'
-            st.button(str(own),key='open_assigned',use_container_width=True,help='Abrir mis actividades asignadas',on_click=_open_assigned)
-        else:
-            st.metric('',own,label_visibility='collapsed')
-    c2.metric('Validaciones pendientes',pend)
-    c3.metric('Notificaciones nuevas',notif)
-    c4.metric('Última versión',f"V{pub[0]['version_no']}" if pub else 'Sin publicar')
+        with st.container(border=True):
+            st.markdown(f'<div class="dashboard-card-label">{"Actividades asignadas" if user["role"]=="Líder" else "Actividades activas"}</div>',unsafe_allow_html=True)
+            if user['role']=='Líder':
+                def _open_assigned():
+                    st.session_state.calendar_assigned_only=True
+                    st.session_state.nav_page='Calendario'
+                st.button(str(own),key='open_assigned',use_container_width=True,help='Abrir mis actividades asignadas',on_click=_open_assigned)
+            else:
+                st.markdown(f'<div class="dashboard-card-value">{own}</div>',unsafe_allow_html=True)
+    with c2:
+        with st.container(border=True):
+            st.markdown('<div class="dashboard-card-label">Validaciones pendientes</div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="dashboard-card-value">{pend}</div>',unsafe_allow_html=True)
+    with c3:
+        with st.container(border=True):
+            st.markdown('<div class="dashboard-card-label">Notificaciones nuevas</div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="dashboard-card-value">{notif}</div>',unsafe_allow_html=True)
+    with c4:
+        with st.container(border=True):
+            st.markdown('<div class="dashboard-card-label">Última versión</div>',unsafe_allow_html=True)
+            value=('V'+str(pub[0]['version_no'])) if pub else 'Sin publicar'
+            st.markdown(f'<div class="dashboard-card-value">{value}</div>',unsafe_allow_html=True)
     if user['role']=='Líder':
         st.caption('Pulse el número de **Actividades asignadas** para abrir directamente las actividades bajo su responsabilidad.')
     st.info('Los líderes pueden editar únicamente las fechas de las actividades asignadas. Las dependencias se revisan automáticamente y solo se activa aprobación cuando disminuye la holgura o se incumple una regla.')
 
 def _calendar_rows(user, semester='Todos', group='Todos', assigned_only=False):
     sql="""SELECT o.id,a.id activity_id,a.code,g.name grupo,a.name,o.semester,o.start_date,o.end_date,
-             oc.comment,oc.user_id comment_user_id,oc.created_at comment_created_at,oc.updated_at comment_updated_at,
-             cu.first_name||' '||cu.last_name comment_author
+             COALESCE((SELECT GROUP_CONCAT(TRIM(u.first_name||' '||u.last_name), ', ')
+                       FROM assignments x JOIN users u ON u.id=x.user_id
+                       WHERE x.activity_id=a.id AND u.role='Líder' AND u.active=1),'') lideres,
+             COALESCE((SELECT GROUP_CONCAT(TRIM(u.first_name||' '||u.last_name)||': '||oc.comment, ' | ')
+                       FROM occurrence_comments oc JOIN users u ON u.id=oc.user_id
+                       WHERE oc.occurrence_id=o.id),'') comentarios
              FROM occurrences o JOIN activities a ON a.id=o.activity_id JOIN activity_groups g ON g.id=a.group_id
-             LEFT JOIN occurrence_comments oc ON oc.occurrence_id=o.id LEFT JOIN users cu ON cu.id=oc.user_id
              WHERE a.active=1"""
     params=[]
     if semester!='Todos':
@@ -385,25 +422,6 @@ def _calendar_rows(user, semester='Todos', group='Todos', assigned_only=False):
     if user['role']=='Líder' and assigned_only:
         sql+=' AND EXISTS (SELECT 1 FROM assignments x WHERE x.user_id=? AND x.activity_id=a.id)'; params.append(user['id'])
     return query(sql+' ORDER BY g.id,a.id,o.semester',params)
-
-def _save_comment(user, occurrence_id, text):
-    existing=query('SELECT * FROM occurrence_comments WHERE occurrence_id=?',(occurrence_id,))
-    now=datetime.now().isoformat(timespec='seconds')
-    text=(text or '').strip()
-    if existing:
-        e=existing[0]
-        if e['user_id']!=user['id']:
-            return False,'El comentario pertenece a otro usuario y solo su autor puede modificarlo o eliminarlo.'
-        if text:
-            execute('UPDATE occurrence_comments SET comment=?,updated_at=? WHERE id=?',(text,now,e['id']))
-            audit(user['id'],'MODIFICAR_COMENTARIO','occurrence_comments',e['id'],text)
-        else:
-            execute('DELETE FROM occurrence_comments WHERE id=?',(e['id'],))
-            audit(user['id'],'ELIMINAR_COMENTARIO','occurrence_comments',e['id'],'')
-    elif text:
-        cid=execute('INSERT INTO occurrence_comments(occurrence_id,user_id,comment,created_at,updated_at) VALUES(?,?,?,?,?)',(occurrence_id,user['id'],text,now,now))
-        audit(user['id'],'AGREGAR_COMENTARIO','occurrence_comments',cid,text)
-    return True,''
 
 def calendar_page(user):
     st.title('Calendario')
@@ -419,77 +437,72 @@ def calendar_page(user):
         assigned_only=f3.toggle('Actividades asignadas',key='calendar_assigned_only',help='Muestra únicamente las actividades asignadas a su usuario.')
     else:
         f3.caption('El Administrador puede editar todas las actividades sin asignación previa.')
-
     rows=_calendar_rows(user,sem,grp,assigned_only)
     if not rows:
         st.warning('No existen actividades para los filtros seleccionados.'); return
-    assigned={r['activity_id'] for r in query('SELECT activity_id FROM assignments WHERE user_id=?',(user['id'],))} if user['role']=='Líder' else set()
-    can_inline_edit = user['role']=='Administrador' or (user['role']=='Líder' and assigned_only)
-
     display=[]
     for r in rows:
-        display.append({'occurrence_id':r['id'],'activity_id':r['activity_id'],'comment_user_id':r['comment_user_id'],
-                        'ID':r['code'],'Grupo':r['grupo'],'Actividad':r['name'],'Semestre':r['semester'],
-                        'Fecha inicio':d(r['start_date']),'Fecha término':d(r['end_date']),
-                        'Comentario':r['comment'] or '','Autor comentario':r['comment_author'] or ''})
+        display.append({'occurrence_id':r['id'],'activity_id':r['activity_id'],
+            'ID':_occurrence_code(r['code'],r['semester']),'Grupo':r['grupo'],'Actividad':r['name'],
+            'Líder responsable':r['lideres'] or 'Sin asignar','Semestre':r['semester'],
+            'Fecha inicio':d(r['start_date']),'Fecha término':d(r['end_date']),
+            'Comentario':r['comentarios'] or ''})
     df=pd.DataFrame(display)
-
-    if not can_inline_edit:
-        view=df.drop(columns=['occurrence_id','activity_id','comment_user_id'])
-        st.dataframe(_style_calendar_dates(view,['Fecha inicio','Fecha término']),hide_index=True,use_container_width=True,
-                     column_config={'Fecha inicio':st.column_config.DateColumn(format='DD/MM/YYYY'),'Fecha término':st.column_config.DateColumn(format='DD/MM/YYYY')})
-        if user['role']=='Líder':
-            st.caption('Active **Actividades asignadas** para editar en línea las fechas bajo su responsabilidad.')
+    view=df.drop(columns=['occurrence_id','activity_id'])
+    styled=_style_calendar_dates(view,['Fecha inicio','Fecha término'])
+    st.dataframe(styled,hide_index=True,use_container_width=True,
+        column_config={'Fecha inicio':st.column_config.DateColumn('Fecha inicio',format='DD/MM/YYYY'),
+            'Fecha término':st.column_config.DateColumn('Fecha término',format='DD/MM/YYYY'),
+            'Líder responsable':st.column_config.TextColumn('Líder responsable',width='medium'),
+            'Comentario':st.column_config.TextColumn('Comentario',width='large')})
+    st.caption('Las fechas correspondientes a domingos o feriados se destacan en rojo.')
+    can_edit=user['role']=='Administrador' or (user['role']=='Líder' and assigned_only)
+    if not can_edit:
+        if user['role']=='Líder': st.caption('Active **Actividades asignadas** para modificar las fechas o gestionar su comentario.')
         return
-
-    editable=df.copy()
-    editable.insert(editable.columns.get_loc('Fecha término')+1,'Día no hábil',editable.apply(lambda r:'🔴' if _is_nonworking(r['Fecha inicio']) or _is_nonworking(r['Fecha término']) else '',axis=1))
-    disabled_cols=['occurrence_id','activity_id','comment_user_id','ID','Grupo','Actividad','Semestre','Día no hábil','Autor comentario']
-    edited=st.data_editor(editable,hide_index=True,use_container_width=True,key='calendar_editor',
-        disabled=disabled_cols,
-        column_config={
-            'occurrence_id':None,'activity_id':None,'comment_user_id':None,
-            'Fecha inicio':st.column_config.DateColumn('Fecha inicio',format='DD/MM/YYYY',required=True),
-            'Fecha término':st.column_config.DateColumn('Fecha término',format='DD/MM/YYYY',required=True),
-            'Comentario':st.column_config.TextColumn('Comentario',help='Visible para líderes y Administrador. Cada usuario puede crear, modificar y eliminar únicamente sus propios comentarios.'),
-            'Autor comentario':st.column_config.TextColumn('Autor comentario')})
-
-    date_changes=[]; comment_changes=[]; unauthorized_comments=[]
-    for i in range(len(editable)):
-        old=editable.iloc[i]; new=edited.iloc[i]
-        ns=new['Fecha inicio']; ne=new['Fecha término']
-        if hasattr(ns,'date'): ns=ns.date()
-        if hasattr(ne,'date'): ne=ne.date()
-        if ns!=old['Fecha inicio'] or ne!=old['Fecha término']:
-            if ne < ns:
-                st.error(f"{old['ID']}: la fecha de término no puede ser anterior a la fecha de inicio.")
-            else:
-                date_changes.append((int(old['occurrence_id']),old['ID'],old['Actividad'],ns,ne))
-        if user['role'] in ('Líder','Administrador'):
-            old_comment=str(old['Comentario'] or '')
-            new_comment=str(new['Comentario'] or '')
-            if new_comment!=old_comment:
-                owner=old['comment_user_id']
-                if pd.isna(owner): owner=None
-                if owner is None or int(owner)==user['id']:
-                    comment_changes.append((int(old['occurrence_id']),new_comment))
-                else:
-                    unauthorized_comments.append(old['ID'])
-
-    if unauthorized_comments:
-        st.error('No puede modificar comentarios creados por otro usuario: '+', '.join(unauthorized_comments)+'. Los cambios en esos comentarios no serán guardados.')
-    if date_changes or comment_changes:
-        st.warning(f'Hay {len(date_changes)} cambio(s) de fecha y {len(comment_changes)} cambio(s) de comentario sin guardar.')
-        if st.button('Guardar cambios',type='primary'):
-            for oid,code,name,ns,ne in date_changes:
-                propose_change(user,oid,ns,ne)
-            for oid,text in comment_changes:
-                _save_comment(user,oid,text)
-            st.success('Cambios guardados. Las modificaciones de fechas fueron enviadas al flujo de validación correspondiente.'); st.rerun()
+    st.subheader('Editar actividad')
+    options={int(r['id']):f"{_occurrence_code(r['code'],r['semester'])} · {r['name']} · {r['semester']}" for r in rows}
+    oid=st.selectbox('Actividad a editar',list(options),format_func=lambda x:options[x],key='calendar_edit_occurrence')
+    selected=next(r for r in rows if int(r['id'])==int(oid))
     if user['role']=='Líder':
-        st.caption('Para eliminar un comentario propio, borre su contenido en la celda **Comentario** y pulse **Guardar cambios**. Los comentarios de otros usuarios son de solo lectura.')
-    else:
-        st.caption('El Administrador también puede crear, modificar y eliminar sus propios comentarios. Los comentarios creados por otros usuarios son de solo lectura.')
+        allowed=query('SELECT 1 FROM assignments WHERE user_id=? AND activity_id=?',(user['id'],selected['activity_id']))
+        if not allowed:
+            st.error('Esta actividad no está asignada a su usuario.'); return
+    c1,c2=st.columns(2)
+    old_start=d(selected['start_date']); old_end=d(selected['end_date'])
+    new_start=c1.date_input('Fecha inicio',value=old_start,key=f'edit_start_{oid}')
+    new_end=c2.date_input('Fecha término',value=old_end,key=f'edit_end_{oid}')
+    if _is_nonworking(new_start): c1.markdown('<span style="color:#d00000;font-weight:700">Fecha no hábil</span>',unsafe_allow_html=True)
+    if _is_nonworking(new_end): c2.markdown('<span style="color:#d00000;font-weight:700">Fecha no hábil</span>',unsafe_allow_html=True)
+    changed=(new_start!=old_start or new_end!=old_end)
+    if changed:
+        if new_end < new_start:
+            st.error('La fecha de término no puede ser anterior a la fecha de inicio.')
+        elif st.button('Guardar cambio de fechas',type='primary'):
+            cid,impacts=propose_change(user,int(oid),new_start,new_end)
+            st.success(f'Cambio #{cid} enviado a validación.' if impacts else f'Cambio #{cid} registrado y enviado a aprobación final.')
+            st.rerun()
+    st.markdown('#### Mi comentario')
+    mine=query('SELECT id,comment,created_at,updated_at FROM occurrence_comments WHERE occurrence_id=? AND user_id=?',(int(oid),user['id']))
+    current=mine[0]['comment'] if mine else ''
+    comment=st.text_area('Comentario',value=current,key=f'own_comment_{oid}',placeholder='Ingrese un comentario visible para otros líderes y para el Administrador.')
+    bc1,bc2=st.columns([1,1])
+    if bc1.button('Guardar comentario',type='primary',key=f'save_comment_{oid}'):
+        text=comment.strip(); now=datetime.now().isoformat(timespec='seconds')
+        if not text:
+            st.warning('Ingrese un comentario o utilice Eliminar comentario si desea borrarlo.')
+        elif mine:
+            execute('UPDATE occurrence_comments SET comment=?,updated_at=? WHERE id=? AND user_id=?',(text,now,mine[0]['id'],user['id']))
+            audit(user['id'],'MODIFICAR_COMENTARIO','occurrence_comments',mine[0]['id'],options[int(oid)])
+            st.success('Comentario actualizado.'); st.rerun()
+        else:
+            cid=execute('INSERT INTO occurrence_comments(occurrence_id,user_id,comment,created_at,updated_at) VALUES(?,?,?,?,?)',(int(oid),user['id'],text,now,now))
+            audit(user['id'],'AGREGAR_COMENTARIO','occurrence_comments',cid,options[int(oid)])
+            st.success('Comentario agregado.'); st.rerun()
+    if mine and bc2.button('Eliminar comentario',key=f'del_comment_{oid}'):
+        execute('DELETE FROM occurrence_comments WHERE id=? AND user_id=?',(mine[0]['id'],user['id']))
+        audit(user['id'],'ELIMINAR_COMENTARIO','occurrence_comments',mine[0]['id'],options[int(oid)])
+        st.success('Comentario eliminado.'); st.rerun()
 
 def validations(user):
     st.title('Mis validaciones')
@@ -664,37 +677,62 @@ def _next_activity_code():
 def activities_admin(user):
     st.title('Mantenedor de actividades')
     rows=query("""SELECT a.id,a.code,a.name,a.group_id,g.name grupo,a.description,a.observations,a.active FROM activities a JOIN activity_groups g ON g.id=a.group_id ORDER BY a.id""")
-    search=st.text_input('Buscar actividad',placeholder='Escriba ID, actividad, grupo, descripción u observación...',key='activities_search')
-    filtered=[r for r in rows if _contains_text([r['code'],r['name'],r['grupo'],r['description'],r['observations']],search)]
-    st.caption(f'{len(filtered)} actividad(es) encontrada(s)')
-    if filtered:
-        df=pd.DataFrame([dict(r) for r in filtered])[['code','name','grupo','description','observations','active']].rename(columns={'code':'ID','name':'Actividad','grupo':'Grupo actividad','description':'Descripción','observations':'Observaciones','active':'Activa'})
-        st.dataframe(df,hide_index=True,use_container_width=True)
-    else:
-        st.info('No hay actividades que coincidan con la búsqueda.')
     groups=query('SELECT id,name FROM activity_groups ORDER BY id'); gl={r['id']:r['name'] for r in groups}
+    group_options=['Todos']+[r['name'] for r in groups]
+    csearch,cgroup=st.columns([2,1])
+    search=csearch.text_input('Buscar actividad',placeholder='Escriba ID, actividad, descripción u observación...',key='activities_search')
+    selected_group=cgroup.selectbox('Grupo de actividad',group_options,key='activities_group_filter')
+
+    display=[]
+    base_visible=[]
+    for r in rows:
+        if selected_group!='Todos' and r['grupo']!=selected_group: continue
+        occs=query('SELECT semester FROM occurrences WHERE activity_id=? ORDER BY semester',(r['id'],))
+        if not occs:
+            candidate_values=[r['code'],r['name'],r['grupo'],r['description'],r['observations']]
+            if _contains_text(candidate_values,search):
+                display.append({'ID':r['code'],'Periodo':'Sin periodo','Actividad':r['name'],'Grupo actividad':r['grupo'],'Descripción':r['description'],'Observaciones':r['observations'],'Activa':bool(r['active'])})
+                base_visible.append(r)
+        else:
+            matched=False
+            for o in occs:
+                code=_occurrence_code(r['code'],o['semester'])
+                candidate_values=[code,r['code'],r['name'],r['grupo'],r['description'],r['observations'],o['semester']]
+                if _contains_text(candidate_values,search):
+                    display.append({'ID':code,'Periodo':o['semester'],'Actividad':r['name'],'Grupo actividad':r['grupo'],'Descripción':r['description'],'Observaciones':r['observations'],'Activa':bool(r['active'])})
+                    matched=True
+            if matched: base_visible.append(r)
+    st.caption(f'{len(display)} registro(s) de actividad/periodo encontrado(s)')
+    if display: st.dataframe(pd.DataFrame(display),hide_index=True,use_container_width=True)
+    else: st.info('No hay actividades que coincidan con los filtros.')
+
     semesters=[r['semester'] for r in query('SELECT DISTINCT semester FROM periods ORDER BY year,semester')]
     tabs=st.tabs(['Agregar','Modificar','Eliminar'])
     with tabs[0]:
         with st.form('activity_add'):
-            code=st.text_input('ID actividad',value=_next_activity_code(),disabled=True)
+            base_code=_next_activity_code()
+            st.text_input('Código base',value=base_code,disabled=True,help='El ID visible se completa automáticamente según el periodo: -1, -2 o -T.')
             name=st.text_input('Actividad'); gid=st.selectbox('Grupo actividad',list(gl),format_func=lambda x:gl[x]); desc=st.text_area('Descripción'); obs=st.text_area('Observaciones')
             sems=st.multiselect('Periodos/semestres en que estará disponible',semesters)
+            if sems: st.caption('ID que se crearán: '+', '.join(_occurrence_code(base_code,x) for x in sems))
             if st.form_submit_button('Agregar actividad',type='primary'):
                 if not name.strip(): st.error('Ingrese el nombre de la actividad.')
+                elif not sems: st.error('Seleccione al menos un periodo.')
                 else:
-                    aid=execute('INSERT INTO activities(code,name,group_id,description,observations,active) VALUES(?,?,?,?,?,1)',(code,name.strip(),gid,desc.strip(),obs.strip()))
+                    aid=execute('INSERT INTO activities(code,name,group_id,description,observations,active) VALUES(?,?,?,?,?,1)',(base_code,name.strip(),gid,desc.strip(),obs.strip()))
                     for sem in sems: execute('INSERT OR IGNORE INTO occurrences(activity_id,semester) VALUES(?,?)',(aid,sem))
-                    audit(user['id'],'AGREGAR_ACTIVIDAD','activities',aid,code); st.success('Actividad agregada.'); st.rerun()
-    al={r['id']:f"{r['code']} · {r['name']} · {r['grupo']}" for r in filtered}
+                    audit(user['id'],'AGREGAR_ACTIVIDAD','activities',aid,base_code); st.success('Actividad agregada.'); st.rerun()
+    unique_visible={r['id']:r for r in base_visible}
+    al={aid:f"{' / '.join(_activity_period_codes(aid,r['code']))} · {r['name']} · {r['grupo']}" for aid,r in unique_visible.items()}
     with tabs[1]:
         if al:
-            aid=st.selectbox('Actividad a modificar',list(al),format_func=lambda x:al[x],key='activity_edit_select',help='El selector también permite buscar escribiendo parte del texto.'); r=next(x for x in rows if x['id']==aid)
+            aid=st.selectbox('Actividad a modificar',list(al),format_func=lambda x:al[x],key='activity_edit_select'); r=next(x for x in rows if x['id']==aid)
             current_sems=[x['semester'] for x in query('SELECT semester FROM occurrences WHERE activity_id=? ORDER BY semester',(aid,))]
             with st.form('activity_edit'):
-                st.text_input('ID actividad',value=r['code'],disabled=True)
+                st.text_input('ID por periodo',value=' / '.join(_activity_period_codes(aid,r['code'])),disabled=True)
                 name=st.text_input('Actividad',value=r['name']); gids=list(gl); gid=st.selectbox('Grupo actividad',gids,index=gids.index(r['group_id']),format_func=lambda x:gl[x]); desc=st.text_area('Descripción',value=r['description'] or ''); obs=st.text_area('Observaciones',value=r['observations'] or ''); active=st.checkbox('Activa',value=bool(r['active']))
                 sems=st.multiselect('Periodos/semestres',semesters,default=[x for x in current_sems if x in semesters])
+                if sems: st.caption('ID resultantes: '+', '.join(_occurrence_code(r['code'],x) for x in sems))
                 if st.form_submit_button('Guardar cambios',type='primary'):
                     execute('UPDATE activities SET name=?,group_id=?,description=?,observations=?,active=? WHERE id=?',(name.strip(),gid,desc.strip(),obs.strip(),1 if active else 0,aid))
                     for sem in sems: execute('INSERT OR IGNORE INTO occurrences(activity_id,semester) VALUES(?,?)',(aid,sem))
@@ -704,8 +742,7 @@ def activities_admin(user):
                             oid=oid[0]['id']; refs=query('SELECT (SELECT COUNT(*) FROM changes WHERE occurrence_id=?)+(SELECT COUNT(*) FROM dependencies WHERE source_occurrence_id=? OR target_occurrence_id=?) n',(oid,oid,oid))[0]['n']
                             if refs==0: execute('DELETE FROM occurrences WHERE id=?',(oid,))
                     audit(user['id'],'MODIFICAR_ACTIVIDAD','activities',aid,r['code']); st.success('Actividad actualizada.'); st.rerun()
-        elif search:
-            st.info('Ajuste la búsqueda para seleccionar una actividad a modificar.')
+        elif search or selected_group!='Todos': st.info('Ajuste los filtros para seleccionar una actividad a modificar.')
     with tabs[2]:
         if al:
             aid=st.selectbox('Actividad a eliminar',list(al),format_func=lambda x:al[x],key='activity_delete_select')
@@ -721,8 +758,7 @@ def activities_admin(user):
                     execute('DELETE FROM occurrence_comments WHERE occurrence_id IN (SELECT id FROM occurrences WHERE activity_id=?)',(aid,))
                     execute('DELETE FROM occurrences WHERE activity_id=?',(aid,)); execute('DELETE FROM activities WHERE id=?',(aid,)); detail='Actividad eliminada'
                 audit(user['id'],'ELIMINAR_ACTIVIDAD','activities',aid,detail); st.success(detail+'.'); st.rerun()
-        elif search:
-            st.info('Ajuste la búsqueda para seleccionar una actividad a eliminar.')
+        elif search or selected_group!='Todos': st.info('Ajuste los filtros para seleccionar una actividad a eliminar.')
 
 def periods_admin(user):
     st.title('Mantenedor de periodos')
@@ -774,27 +810,31 @@ def _dep_storage(rule_type, days):
 
 def _dep_description(src_id, src_field, tgt_id, tgt_field, rule_type, days, occ_by_id):
     src=occ_by_id[src_id]; tgt=occ_by_id[tgt_id]
+    src_code=_occurrence_code(src['code'],src['semester']); tgt_code=_occurrence_code(tgt['code'],tgt['semester'])
     sv='comienza' if src_field=='start_date' else 'termina'
     tv='comienza' if tgt_field=='start_date' else 'termina'
     n=max(0,int(days)); unit='día' if n==1 else 'días'
     if rule_type=='igual':
-        return f"{tgt['code']} {tv} el mismo día que {src['code']} {sv}"
+        return f"{tgt_code} {tv} el mismo día que {src_code} {sv}"
     if n==0:
-        return f"{tgt['code']} {tv} {rule_type} de {src['code']} {sv}"
-    return f"{tgt['code']} {tv} {n} {unit} {rule_type} de {src['code']} {sv}"
+        return f"{tgt_code} {tv} {rule_type} de {src_code} {sv}"
+    return f"{tgt_code} {tv} {n} {unit} {rule_type} de {src_code} {sv}"
 
 
 def dependencies_admin(user):
     st.title('Mantenedor de dependencias')
-    rows=query("""SELECT d.id,d.source_occurrence_id,d.source_field,d.operator,d.offset_days,d.rule_type,d.target_occurrence_id,d.target_field,d.description,d.active,sa.code||' · '||so.semester origen,ta.code||' · '||too.semester destino
+    rows=query("""SELECT d.id,d.source_occurrence_id,d.source_field,d.operator,d.offset_days,d.rule_type,d.target_occurrence_id,d.target_field,d.description,d.active,
+                         sa.code source_code,so.semester source_semester,ta.code target_code,too.semester target_semester
                   FROM dependencies d JOIN occurrences so ON so.id=d.source_occurrence_id JOIN activities sa ON sa.id=so.activity_id JOIN occurrences too ON too.id=d.target_occurrence_id JOIN activities ta ON ta.id=too.activity_id ORDER BY d.id""")
     if rows:
         table=[]
         for r in rows:
-            table.append({'ID':r['id'],'Origen':r['origen'],'Campo origen':FIELD_LABEL[r['source_field']], 'Regla':_dep_rule_type(r).capitalize(), 'Días':abs(int(r['offset_days'])) if _dep_rule_type(r)!='igual' else 0,'Destino':r['destino'],'Campo destino':FIELD_LABEL[r['target_field']],'Descripción':r['description'],'Activa':bool(r['active'])})
+            origen=f"{_occurrence_code(r['source_code'],r['source_semester'])} · {r['source_semester']}"
+            destino=f"{_occurrence_code(r['target_code'],r['target_semester'])} · {r['target_semester']}"
+            table.append({'ID':r['id'],'Origen':origen,'Campo origen':FIELD_LABEL[r['source_field']], 'Regla':_dep_rule_type(r).capitalize(), 'Días':abs(int(r['offset_days'])) if _dep_rule_type(r)!='igual' else 0,'Destino':destino,'Campo destino':FIELD_LABEL[r['target_field']],'Descripción':r['description'],'Activa':bool(r['active'])})
         st.dataframe(pd.DataFrame(table),hide_index=True,use_container_width=True)
     occ=query("""SELECT o.id,a.code,a.name,o.semester FROM occurrences o JOIN activities a ON a.id=o.activity_id WHERE a.active=1 ORDER BY o.semester,a.id""")
-    labels={r['id']:f"{r['code']} · {r['name']} · {r['semester']}" for r in occ}; ids=list(labels); occ_by_id={r['id']:r for r in occ}
+    labels={r['id']:f"{_occurrence_code(r['code'],r['semester'])} · {r['name']} · {r['semester']}" for r in occ}; ids=list(labels); occ_by_id={r['id']:r for r in occ}
     tabs=st.tabs(['Agregar','Modificar','Eliminar'])
     with tabs[0]:
         if ids:
@@ -816,7 +856,7 @@ def dependencies_admin(user):
                     op,off=_dep_storage(rule_type,days)
                     did=execute('INSERT INTO dependencies(source_occurrence_id,source_field,target_occurrence_id,target_field,operator,offset_days,description,rule_type) VALUES(?,?,?,?,?,?,?,?)',(src,sf,tgt,tf,op,off,desc,rule_type))
                     audit(user['id'],'AGREGAR_DEPENDENCIA','dependencies',did,desc); st.success('Dependencia agregada.'); st.rerun()
-    dl={r['id']:f"#{r['id']} · {r['origen']} → {r['destino']}" for r in rows}
+    dl={r['id']:f"#{r['id']} · {_occurrence_code(r['source_code'],r['source_semester'])} → {_occurrence_code(r['target_code'],r['target_semester'])}" for r in rows}
     with tabs[1]:
         if dl:
             did=st.selectbox('Dependencia a modificar',list(dl),format_func=lambda x:dl[x],key='dep_edit_select'); r=next(x for x in rows if x['id']==did)
@@ -843,13 +883,16 @@ def dependencies_admin(user):
             did=st.selectbox('Dependencia a eliminar',list(dl),format_func=lambda x:dl[x],key='dep_delete_select')
             if st.button('Eliminar dependencia',type='primary'):
                 execute('DELETE FROM dependencies WHERE id=?',(did,)); audit(user['id'],'ELIMINAR_DEPENDENCIA','dependencies',did,''); st.rerun()
-    st.caption('Ejemplo: ACT-017 comienza 2 días después de ACT-016. Las reglas se evalúan automáticamente al modificar una fecha.')
+    st.caption('Ejemplo: ACT-017-1 comienza 2 días después de ACT-016-1. Las reglas se evalúan automáticamente al modificar una fecha.')
 
 def assignments_admin(user):
     st.title('Asignación de responsables por actividad')
-    rows=query("""SELECT x.id,u.first_name||' '||u.last_name líder,u.email,a.code,a.name,g.name grupo FROM assignments x JOIN users u ON u.id=x.user_id JOIN activities a ON a.id=x.activity_id JOIN activity_groups g ON g.id=a.group_id ORDER BY u.last_name,a.id""")
+    rows=query("""SELECT x.id,u.first_name||' '||u.last_name líder,u.email,a.id activity_id,a.code,a.name,g.name grupo FROM assignments x JOIN users u ON u.id=x.user_id JOIN activities a ON a.id=x.activity_id JOIN activity_groups g ON g.id=a.group_id ORDER BY u.last_name,a.id""")
     if rows:
-        st.dataframe(pd.DataFrame([dict(r) for r in rows]).rename(columns={'id':'ID','líder':'Líder','email':'Correo','code':'ID actividad','name':'Actividad','grupo':'Grupo actividad'}),hide_index=True,use_container_width=True)
+        table=[]
+        for r in rows:
+            table.append({'ID':r['id'],'Líder':r['líder'],'Correo':r['email'],'ID actividad':' / '.join(_activity_period_codes(r['activity_id'],r['code'])),'Actividad':r['name'],'Grupo actividad':r['grupo']})
+        st.dataframe(pd.DataFrame(table),hide_index=True,use_container_width=True)
     leaders=query("SELECT id,first_name,last_name,email FROM users WHERE role='Líder' AND active=1 ORDER BY last_name,first_name")
     acts=query('SELECT a.id,a.code,a.name,a.group_id,g.name grupo FROM activities a JOIN activity_groups g ON g.id=a.group_id WHERE a.active=1 ORDER BY g.id,a.id')
     groups=query('SELECT id,name FROM activity_groups ORDER BY id')
@@ -862,7 +905,7 @@ def assignments_admin(user):
     group_options=[0]+list(gl)
     gid=st.selectbox('Filtrar por grupo de actividad',group_options,format_func=lambda x:'Todos los grupos' if x==0 else gl[x],help='Seleccione un grupo para facilitar la búsqueda y asignación de actividades.')
     filtered_acts=[r for r in acts if gid==0 or r['group_id']==gid]
-    al={r['id']:f"{r['code']} · {r['name']}" for r in filtered_acts}; aids=list(al)
+    al={r['id']:f"{' / '.join(_activity_period_codes(r['id'],r['code']))} · {r['name']}" for r in filtered_acts}; aids=list(al)
     current_all=[r['activity_id'] for r in query('SELECT activity_id FROM assignments WHERE user_id=? ORDER BY activity_id',(uid,))]
     current_visible=[x for x in current_all if x in aids]
     selected=st.multiselect('Actividades',aids,default=current_visible,format_func=lambda x:al[x],help='Puede seleccionar varias actividades. El selector permite buscar escribiendo parte del ID o nombre.')
