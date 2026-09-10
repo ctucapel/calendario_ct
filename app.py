@@ -272,13 +272,13 @@ def holidays_admin(user):
     tabs=st.tabs(['Agregar','Modificar','Eliminar'])
 
     with tabs[0]:
-        holiday_type=st.selectbox('Tipo de feriado',['Variable','Permanente'],key='holiday_type_add',help='Permanente: aplica a todos los años. Variable: aplica solo al año seleccionado.')
         with st.form('holiday_add'):
-            c0,c1,c2,c3=st.columns(4)
-            year=c0.number_input('Año',min_value=2000,max_value=2100,value=int(default_year),step=1,disabled=(holiday_type=='Permanente'),help='Solo aplica a feriados variables.')
+            c0,c1,c2,c3,c4=st.columns([1.1,0.8,1.4,1.2,1.4])
+            year=c0.number_input('Año',min_value=2000,max_value=2100,value=int(default_year),step=1,help='Para feriados permanentes el año se ignora.')
             day=c1.number_input('Día',1,31,1)
             month=c2.selectbox('Mes',list(MONTHS_ES),format_func=lambda x:MONTHS_ES[x])
             dtype=c3.selectbox('Tipo de día',['Feriado','Hábil'])
+            holiday_type=c4.selectbox('Tipo de feriado',['Variable','Permanente'],key='holiday_type_add',help='Permanente: aplica a todos los años. Variable: aplica solo al año seleccionado.')
             st.caption('Si el tipo de feriado es Permanente, el año se ignora y la fecha aplicará a todos los calendarios.')
             if st.form_submit_button('Agregar día',type='primary'):
                 store_year=0 if holiday_type=='Permanente' else int(year)
@@ -298,17 +298,18 @@ def holidays_admin(user):
         if hl:
             hid=st.selectbox('Día a modificar',list(hl),format_func=lambda x:hl[x],key='holiday_edit')
             r=next(x for x in rows if x['id']==hid)
-            type_options=['Variable','Permanente']
-            holiday_type=st.selectbox('Tipo de feriado',type_options,index=type_options.index(r['holiday_type']),key='holiday_type_edit')
             with st.form('holiday_edit_form'):
-                c0,c1,c2,c3=st.columns(4)
+                c0,c1,c2,c3,c4=st.columns([1.1,0.8,1.4,1.2,1.4])
                 base_year=int(r['year']) if int(r['year'])>0 else int(default_year)
-                year=c0.number_input('Año',min_value=2000,max_value=2100,value=base_year,step=1,key='hyear',disabled=(holiday_type=='Permanente'),help='Solo aplica a feriados variables.')
+                year=c0.number_input('Año',min_value=2000,max_value=2100,value=base_year,step=1,key='hyear',help='Para feriados permanentes el año se ignora.')
                 day=c1.number_input('Día',1,31,int(r['day']),key='hday')
                 months=list(MONTHS_ES)
                 month=c2.selectbox('Mes',months,index=months.index(r['month']),format_func=lambda x:MONTHS_ES[x],key='hmonth')
                 types=['Feriado','Hábil']
                 dtype=c3.selectbox('Tipo de día',types,index=types.index(r['day_type']),key='htype')
+                type_options=['Variable','Permanente']
+                holiday_type=c4.selectbox('Tipo de feriado',type_options,index=type_options.index(r['holiday_type']),key='holiday_type_edit')
+                st.caption('Si el tipo de feriado es Permanente, el año se ignora y la fecha aplicará a todos los calendarios.')
                 if st.form_submit_button('Guardar cambios',type='primary'):
                     store_year=0 if holiday_type=='Permanente' else int(year)
                     validation_year=2028 if holiday_type=='Permanente' else int(year)
