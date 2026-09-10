@@ -84,6 +84,13 @@ def init_db():
       comment TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       FOREIGN KEY(occurrence_id) REFERENCES occurrences(id), FOREIGN KEY(user_id) REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS holidays(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      day INTEGER NOT NULL CHECK(day BETWEEN 1 AND 31),
+      month INTEGER NOT NULL CHECK(month BETWEEN 1 AND 12),
+      day_type TEXT NOT NULL CHECK(day_type IN ('Feriado','Hábil')),
+      UNIQUE(day,month)
+    );
     CREATE TABLE IF NOT EXISTS versions(
       id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER NOT NULL, version_no INTEGER NOT NULL,
       status TEXT NOT NULL, change_id INTEGER, created_at TEXT NOT NULL, published_at TEXT,
@@ -105,6 +112,11 @@ def init_db():
         c.execute('ALTER TABLE versions ADD COLUMN source TEXT')
     if 'description' not in cols:
         c.execute('ALTER TABLE versions ADD COLUMN description TEXT')
+
+    dep_cols={r['name'] for r in c.execute('PRAGMA table_info(dependencies)').fetchall()}
+    if 'rule_type' not in dep_cols:
+        c.execute('ALTER TABLE dependencies ADD COLUMN rule_type TEXT')
+        c.execute("UPDATE dependencies SET rule_type=CASE WHEN operator='<=' THEN 'antes' ELSE 'después' END WHERE rule_type IS NULL")
 
     # Seed idempotente: seguro ante reinicios o inicializaciones concurrentes
     with open(SEED_PATH,encoding='utf-8') as f:
