@@ -142,7 +142,9 @@ def sidebar(user):
         opts=['Inicio','Calendario','Mis validaciones','Notificaciones','Versiones','Usuarios','Actividades','Periodos','Dependencias','Asignaciones','Auditoría']
     else:
         opts=['Inicio','Calendario','Mis validaciones','Notificaciones','Versiones']
-    page=st.sidebar.radio('Navegación',opts)
+    if 'nav_page' not in st.session_state or st.session_state.nav_page not in opts:
+        st.session_state.nav_page=opts[0]
+    page=st.sidebar.radio('Navegación',opts,key='nav_page')
     if st.sidebar.button('Cerrar sesión'):
         st.session_state.clear(); st.rerun()
     return page
@@ -152,51 +154,144 @@ def dashboard(user):
     pend=query("SELECT COUNT(*) n FROM approvals WHERE user_id=? AND status='Pendiente'",(user['id'],))[0]['n']
     notif=query('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND read_at IS NULL',(user['id'],))[0]['n']
     pub=query("SELECT version_no,published_at FROM versions WHERE status='PUBLICADA' ORDER BY year DESC,version_no DESC LIMIT 1")
-    own=query('SELECT COUNT(*) n FROM assignments WHERE user_id=?',(user['id'],))[0]['n']
-    c1,c2,c3,c4=st.columns(4); c1.metric('Actividades asignadas',own); c2.metric('Validaciones pendientes',pend); c3.metric('Notificaciones nuevas',notif); c4.metric('Última versión',f"V{pub[0]['version_no']}" if pub else 'Sin publicar')
+    own=query('SELECT COUNT(*) n FROM assignments WHERE user_id=?',(user['id'],))[0]['n'] if user['role']=='Líder' else query('SELECT COUNT(*) n FROM activities WHERE active=1')[0]['n']
+    c1,c2,c3,c4=st.columns(4)
+    with c1:
+        st.caption('Actividades asignadas' if user['role']=='Líder' else 'Actividades activas')
+        if user['role']=='Líder':
+            def _open_assigned():
+                st.session_state.calendar_assigned_only=True
+                st.session_state.nav_page='Calendario'
+            st.button(str(own),key='open_assigned',use_container_width=True,help='Abrir mis actividades asignadas',on_click=_open_assigned)
+        else:
+            st.metric('',own,label_visibility='collapsed')
+    c2.metric('Validaciones pendientes',pend)
+    c3.metric('Notificaciones nuevas',notif)
+    c4.metric('Última versión',f"V{pub[0]['version_no']}" if pub else 'Sin publicar')
+    if user['role']=='Líder':
+        st.caption('Pulse el número de **Actividades asignadas** para abrir directamente las actividades bajo su responsabilidad.')
     st.info('Los líderes pueden editar únicamente las fechas de las actividades asignadas. Las dependencias se revisan automáticamente y solo se activa aprobación cuando disminuye la holgura o se incumple una regla.')
+
+def _calendar_rows(user, semester='Todos', group='Todos', assigned_only=False):
+    sql="""SELECT o.id,a.id activity_id,a.code,g.name grupo,a.name,o.semester,o.start_date,o.end_date,
+             oc.comment,oc.user_id comment_user_id,oc.created_at comment_created_at,oc.updated_at comment_updated_at,
+             cu.first_name||' '||cu.last_name comment_author
+             FROM occurrences o JOIN activities a ON a.id=o.activity_id JOIN activity_groups g ON g.id=a.group_id
+             LEFT JOIN occurrence_comments oc ON oc.occurrence_id=o.id LEFT JOIN users cu ON cu.id=oc.user_id
+             WHERE a.active=1"""
+    params=[]
+    if semester!='Todos':
+        sql+=' AND o.semester=?'; params.append(semester)
+    if group!='Todos':
+        sql+=' AND g.name=?'; params.append(group)
+    if user['role']=='Líder' and assigned_only:
+        sql+=' AND EXISTS (SELECT 1 FROM assignments x WHERE x.user_id=? AND x.activity_id=a.id)'; params.append(user['id'])
+    return query(sql+' ORDER BY g.id,a.id,o.semester',params)
+
+def _save_comment(user, occurrence_id, text):
+    existing=query('SELECT * FROM occurrence_comments WHERE occurrence_id=?',(occurrence_id,))
+    now=datetime.now().isoformat(timespec='seconds')
+    text=(text or '').strip()
+    if existing:
+        e=existing[0]
+        if e['user_id']!=user['id']:
+            return False,'El comentario pertenece a otro líder y solo su autor puede modificarlo o eliminarlo.'
+        if text:
+            execute('UPDATE occurrence_comments SET comment=?,updated_at=? WHERE id=?',(text,now,e['id']))
+            audit(user['id'],'MODIFICAR_COMENTARIO','occurrence_comments',e['id'],text)
+        else:
+            execute('DELETE FROM occurrence_comments WHERE id=?',(e['id'],))
+            audit(user['id'],'ELIMINAR_COMENTARIO','occurrence_comments',e['id'],'')
+    elif text:
+        cid=execute('INSERT INTO occurrence_comments(occurrence_id,user_id,comment,created_at,updated_at) VALUES(?,?,?,?,?)',(occurrence_id,user['id'],text,now,now))
+        audit(user['id'],'AGREGAR_COMENTARIO','occurrence_comments',cid,text)
+    return True,''
 
 def calendar_page(user):
     st.title('Calendario')
-    sem=st.selectbox('Semestre',['Todos']+[r['semester'] for r in query('SELECT DISTINCT semester FROM occurrences ORDER BY semester')])
-    sql="""SELECT o.id,a.id activity_id,a.code,g.name grupo,a.name,o.semester,o.start_date,o.end_date FROM occurrences o JOIN activities a ON a.id=o.activity_id JOIN activity_groups g ON g.id=a.group_id WHERE a.active=1"""; params=[]
-    if sem!='Todos': sql+=' AND o.semester=?'; params.append(sem)
-    rows=query(sql+' ORDER BY g.id,a.id,o.semester',params)
-    df=pd.DataFrame([dict(r) for r in rows])
-    if df.empty:
-        st.warning('Sin actividades.'); return
-    st.dataframe(df[['code','grupo','name','semester','start_date','end_date']].rename(columns={'code':'ID','grupo':'Grupo','name':'Actividad','semester':'Semestre','start_date':'Inicio','end_date':'Término'}),use_container_width=True,hide_index=True)
+    semesters=['Todos']+[r['semester'] for r in query('SELECT DISTINCT semester FROM occurrences ORDER BY semester')]
+    groups=['Todos']+[r['name'] for r in query('SELECT name FROM activity_groups ORDER BY id')]
+    f1,f2,f3=st.columns([1,1,1])
+    sem=f1.selectbox('Semestre',semesters,key='calendar_semester')
+    grp=f2.selectbox('Grupo',groups,key='calendar_group')
+    assigned_only=False
+    if user['role']=='Líder':
+        if 'calendar_assigned_only' not in st.session_state:
+            st.session_state.calendar_assigned_only=False
+        assigned_only=f3.toggle('Actividades asignadas',key='calendar_assigned_only',help='Muestra únicamente las actividades asignadas a su usuario.')
+    else:
+        f3.caption('El Administrador puede editar todas las actividades sin asignación previa.')
 
-    if user['role'] not in ('Líder','Administrador'):
+    rows=_calendar_rows(user,sem,grp,assigned_only)
+    if not rows:
+        st.warning('No existen actividades para los filtros seleccionados.'); return
+    assigned={r['activity_id'] for r in query('SELECT activity_id FROM assignments WHERE user_id=?',(user['id'],))} if user['role']=='Líder' else set()
+    can_inline_edit = user['role']=='Administrador' or (user['role']=='Líder' and assigned_only)
+
+    display=[]
+    for r in rows:
+        display.append({'occurrence_id':r['id'],'activity_id':r['activity_id'],'comment_user_id':r['comment_user_id'],
+                        'ID':r['code'],'Grupo':r['grupo'],'Actividad':r['name'],'Semestre':r['semester'],
+                        'Fecha inicio':d(r['start_date']),'Fecha término':d(r['end_date']),
+                        'Comentario':r['comment'] or '','Autor comentario':r['comment_author'] or ''})
+    df=pd.DataFrame(display)
+
+    if not can_inline_edit:
+        st.dataframe(df.drop(columns=['occurrence_id','activity_id','comment_user_id']),hide_index=True,use_container_width=True,
+                     column_config={'Fecha inicio':st.column_config.DateColumn(format='DD/MM/YYYY'),'Fecha término':st.column_config.DateColumn(format='DD/MM/YYYY')})
+        if user['role']=='Líder':
+            st.caption('Active **Actividades asignadas** para editar en línea las fechas bajo su responsabilidad.')
         return
-    if user['role']=='Administrador':
-        editable=list(rows)
-        st.caption('Como Administrador puede modificar las fechas de cualquier actividad sin necesidad de una asignación previa.')
-    else:
-        assigned={r['activity_id'] for r in query('SELECT activity_id FROM assignments WHERE user_id=?',(user['id'],))}
-        editable=[r for r in rows if r['activity_id'] in assigned]
 
-    st.subheader('Modificar fechas')
-    if not editable:
-        st.caption('No tiene actividades asignadas.'); return
-    label={r['id']:f"{r['code']} · {r['name']} · {r['semester']}" for r in editable}
-    oid=st.selectbox('Actividad',list(label),format_func=lambda x:label[x]); o=next(x for x in editable if x['id']==oid)
-    c1,c2=st.columns(2)
-    ns=c1.date_input('Nueva fecha inicio',value=d(o['start_date']) or date.today())
-    ne=c2.date_input('Nueva fecha término',value=d(o['end_date']) or d(o['start_date']) or date.today())
-    if ne < ns:
-        st.error('La fecha de término no puede ser anterior a la fecha de inicio.'); return
-    impacts=dependency_impacts(oid,ns,ne)
-    if impacts:
-        st.warning(f'Este cambio reduce o incumple {len(impacts)} dependencia(s) y requerirá aprobación de los líderes impactados.')
-        st.dataframe(pd.DataFrame(impacts)[['code','name','semester','old_slack','new_slack']].rename(columns={'code':'ID','name':'Actividad impactada','semester':'Semestre','old_slack':'Holgura anterior','new_slack':'Nueva holgura'}),hide_index=True,use_container_width=True)
+    editable=df.copy()
+    disabled_cols=['occurrence_id','activity_id','comment_user_id','ID','Grupo','Actividad','Semestre','Autor comentario']
+    if user['role']=='Administrador':
+        disabled_cols.append('Comentario')
+    edited=st.data_editor(editable,hide_index=True,use_container_width=True,key='calendar_editor',
+        disabled=disabled_cols,
+        column_config={
+            'occurrence_id':None,'activity_id':None,'comment_user_id':None,
+            'Fecha inicio':st.column_config.DateColumn('Fecha inicio',format='DD/MM/YYYY',required=True),
+            'Fecha término':st.column_config.DateColumn('Fecha término',format='DD/MM/YYYY',required=True),
+            'Comentario':st.column_config.TextColumn('Comentario',help='Visible para otros líderes y el Administrador. Solo el autor puede modificarlo o eliminarlo.'),
+            'Autor comentario':st.column_config.TextColumn('Autor comentario')})
+
+    date_changes=[]; comment_changes=[]; unauthorized_comments=[]
+    for i in range(len(editable)):
+        old=editable.iloc[i]; new=edited.iloc[i]
+        ns=new['Fecha inicio']; ne=new['Fecha término']
+        if hasattr(ns,'date'): ns=ns.date()
+        if hasattr(ne,'date'): ne=ne.date()
+        if ns!=old['Fecha inicio'] or ne!=old['Fecha término']:
+            if ne < ns:
+                st.error(f"{old['ID']}: la fecha de término no puede ser anterior a la fecha de inicio.")
+            else:
+                date_changes.append((int(old['occurrence_id']),old['ID'],old['Actividad'],ns,ne))
+        if user['role']=='Líder':
+            old_comment=str(old['Comentario'] or '')
+            new_comment=str(new['Comentario'] or '')
+            if new_comment!=old_comment:
+                owner=old['comment_user_id']
+                if pd.isna(owner): owner=None
+                if owner is None or int(owner)==user['id']:
+                    comment_changes.append((int(old['occurrence_id']),new_comment))
+                else:
+                    unauthorized_comments.append(old['ID'])
+
+    if unauthorized_comments:
+        st.error('No puede modificar comentarios creados por otro líder: '+', '.join(unauthorized_comments)+'. Los cambios en esos comentarios no serán guardados.')
+    if date_changes or comment_changes:
+        st.warning(f'Hay {len(date_changes)} cambio(s) de fecha y {len(comment_changes)} cambio(s) de comentario sin guardar.')
+        if st.button('Guardar cambios',type='primary'):
+            for oid,code,name,ns,ne in date_changes:
+                propose_change(user,oid,ns,ne)
+            for oid,text in comment_changes:
+                _save_comment(user,oid,text)
+            st.success('Cambios guardados. Las modificaciones de fechas fueron enviadas al flujo de validación correspondiente.'); st.rerun()
+    if user['role']=='Líder':
+        st.caption('Para eliminar un comentario propio, borre su contenido en la celda **Comentario** y pulse **Guardar cambios**. Los comentarios de otros líderes son de solo lectura por regla de negocio.')
     else:
-        st.success('No se detecta reducción de holgura. El cambio irá a borrador para aprobación final del Administrador.')
-    if st.button('Registrar modificación',type='primary'):
-        if s(ns)==o['start_date'] and s(ne)==o['end_date']:
-            st.info('No existen cambios respecto de las fechas actuales.')
-        else:
-            cid,_=propose_change(user,oid,ns,ne); st.success(f'Cambio #{cid} registrado.'); st.rerun()
+        st.caption('El Administrador puede leer todos los comentarios, pero solo el líder autor puede modificarlos o eliminarlos.')
 
 def validations(user):
     st.title('Mis validaciones')

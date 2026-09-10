@@ -79,6 +79,11 @@ def init_db():
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL,
       created_at TEXT NOT NULL, read_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS occurrence_comments(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, occurrence_id INTEGER NOT NULL UNIQUE, user_id INTEGER NOT NULL,
+      comment TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      FOREIGN KEY(occurrence_id) REFERENCES occurrences(id), FOREIGN KEY(user_id) REFERENCES users(id)
+    );
     CREATE TABLE IF NOT EXISTS versions(
       id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER NOT NULL, version_no INTEGER NOT NULL,
       status TEXT NOT NULL, change_id INTEGER, created_at TEXT NOT NULL, published_at TEXT,
