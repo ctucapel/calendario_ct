@@ -86,10 +86,12 @@ def init_db():
     );
     CREATE TABLE IF NOT EXISTS holidays(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      year INTEGER NOT NULL,
       day INTEGER NOT NULL CHECK(day BETWEEN 1 AND 31),
       month INTEGER NOT NULL CHECK(month BETWEEN 1 AND 12),
       day_type TEXT NOT NULL CHECK(day_type IN ('Feriado','Hábil')),
-      UNIQUE(day,month)
+      holiday_type TEXT NOT NULL DEFAULT 'Variable' CHECK(holiday_type IN ('Permanente','Variable')),
+      UNIQUE(year,day,month,holiday_type)
     );
     CREATE TABLE IF NOT EXISTS versions(
       id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER NOT NULL, version_no INTEGER NOT NULL,
@@ -117,6 +119,32 @@ def init_db():
     if 'rule_type' not in dep_cols:
         c.execute('ALTER TABLE dependencies ADD COLUMN rule_type TEXT')
         c.execute("UPDATE dependencies SET rule_type=CASE WHEN operator='<=' THEN 'antes' ELSE 'después' END WHERE rule_type IS NULL")
+
+    # Migración de feriados V5.1: agrega año y cambia la unicidad a año/día/mes.
+    holiday_cols={r['name'] for r in c.execute('PRAGMA table_info(holidays)').fetchall()}
+    if holiday_cols and 'year' not in holiday_cols:
+        # Los registros existentes provienen del calendario base 2027.
+        c.execute('ALTER TABLE holidays RENAME TO holidays_legacy')
+        c.execute("""
+            CREATE TABLE holidays(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              year INTEGER NOT NULL,
+              day INTEGER NOT NULL CHECK(day BETWEEN 1 AND 31),
+              month INTEGER NOT NULL CHECK(month BETWEEN 1 AND 12),
+              day_type TEXT NOT NULL CHECK(day_type IN ('Feriado','Hábil')),
+              UNIQUE(year,day,month)
+            )
+        """)
+        c.execute('INSERT INTO holidays(id,year,day,month,day_type) SELECT id,2027,day,month,day_type FROM holidays_legacy')
+        c.execute('DROP TABLE holidays_legacy')
+
+    # Migración V5.2: agrega tipo de feriado (Permanente/Variable).
+    holiday_cols={r['name'] for r in c.execute('PRAGMA table_info(holidays)').fetchall()}
+    if holiday_cols and 'holiday_type' not in holiday_cols:
+        c.execute("ALTER TABLE holidays ADD COLUMN holiday_type TEXT NOT NULL DEFAULT 'Variable'")
+    # Índices para evitar duplicados lógicos. Para permanentes se usa year=0.
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_holiday_variable ON holidays(year,day,month) WHERE holiday_type='Variable'")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_holiday_permanent ON holidays(day,month) WHERE holiday_type='Permanente'")
 
     # Seed idempotente: seguro ante reinicios o inicializaciones concurrentes
     with open(SEED_PATH,encoding='utf-8') as f:

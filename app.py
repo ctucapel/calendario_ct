@@ -150,8 +150,11 @@ def _is_nonworking(value):
     if hasattr(dt,'date') and not isinstance(dt,date): dt=dt.date()
     if not isinstance(dt,date): return False
     if dt.weekday()==6: return True
-    row=query("SELECT day_type FROM holidays WHERE day=? AND month=?",(dt.day,dt.month))
-    return bool(row and row[0]['day_type']=='Feriado')
+    rows=query("SELECT day_type,holiday_type FROM holidays WHERE day=? AND month=? AND (holiday_type='Permanente' OR (holiday_type='Variable' AND year=?)) ORDER BY CASE WHEN holiday_type='Permanente' THEN 0 ELSE 1 END",(dt.day,dt.month,dt.year))
+    if not rows: return False
+    for r in rows:
+        if r['holiday_type']=='Permanente' and r['day_type']=='Feriado': return True
+    return any(r['day_type']=='Feriado' for r in rows)
 
 def _style_calendar_dates(df, columns):
     def style(v):
@@ -249,35 +252,83 @@ def copy_calendar_page(user):
 
 def holidays_admin(user):
     st.title('Mantenedor de feriados')
-    st.caption('Todos los días no informados como feriado se consideran hábiles. Los domingos se destacan siempre como no hábiles.')
-    rows=query('SELECT * FROM holidays ORDER BY month,day')
+    st.caption('Los feriados permanentes aplican a todos los años. Los feriados variables aplican solo al año indicado. Todos los días no informados como feriado se consideran hábiles y los domingos se consideran siempre no hábiles.')
+    rows=query('SELECT * FROM holidays ORDER BY CASE WHEN holiday_type="Permanente" THEN 0 ELSE 1 END, year,month,day')
     if rows:
-        df=pd.DataFrame([{'ID':r['id'],'Día':r['day'],'Mes':MONTHS_ES[r['month']],'Tipo de día':r['day_type']} for r in rows])
+        df=pd.DataFrame([{
+            'ID':r['id'],
+            'Año':'Todos' if r['holiday_type']=='Permanente' else r['year'],
+            'Día':r['day'],
+            'Mes':MONTHS_ES[r['month']],
+            'Tipo de día':r['day_type'],
+            'Tipo de feriado':r['holiday_type']
+        } for r in rows])
         st.dataframe(df,hide_index=True,use_container_width=True)
-    else: st.info('No hay días configurados.')
+    else:
+        st.info('No hay días configurados.')
+
+    cal_years=_calendar_years()
+    default_year=(max(cal_years) if cal_years else date.today().year)
     tabs=st.tabs(['Agregar','Modificar','Eliminar'])
+
     with tabs[0]:
+        holiday_type=st.selectbox('Tipo de feriado',['Variable','Permanente'],key='holiday_type_add',help='Permanente: aplica a todos los años. Variable: aplica solo al año seleccionado.')
         with st.form('holiday_add'):
-            c1,c2,c3=st.columns(3); day=c1.number_input('Día',1,31,1); month=c2.selectbox('Mes',list(MONTHS_ES),format_func=lambda x:MONTHS_ES[x]); dtype=c3.selectbox('Tipo de día',['Feriado','Hábil'])
+            c0,c1,c2,c3=st.columns(4)
+            year=c0.number_input('Año',min_value=2000,max_value=2100,value=int(default_year),step=1,disabled=(holiday_type=='Permanente'),help='Solo aplica a feriados variables.')
+            day=c1.number_input('Día',1,31,1)
+            month=c2.selectbox('Mes',list(MONTHS_ES),format_func=lambda x:MONTHS_ES[x])
+            dtype=c3.selectbox('Tipo de día',['Feriado','Hábil'])
+            st.caption('Si el tipo de feriado es Permanente, el año se ignora y la fecha aplicará a todos los calendarios.')
             if st.form_submit_button('Agregar día',type='primary'):
+                store_year=0 if holiday_type=='Permanente' else int(year)
+                validation_year=2028 if holiday_type=='Permanente' else int(year)
                 try:
-                    hid=execute('INSERT INTO holidays(day,month,day_type) VALUES(?,?,?)',(int(day),int(month),dtype)); audit(user['id'],'AGREGAR_FERIADO','holidays',hid,f'{day}/{month} {dtype}'); st.rerun()
-                except Exception: st.error('Ese día y mes ya están configurados. Use Modificar para cambiar su tipo.')
-    hl={r['id']:f"{r['day']:02d}/{r['month']:02d} · {r['day_type']}" for r in rows}
+                    date(validation_year,int(month),int(day))
+                    hid=execute('INSERT INTO holidays(year,day,month,day_type,holiday_type) VALUES(?,?,?,?,?)',(store_year,int(day),int(month),dtype,holiday_type))
+                    audit(user['id'],'AGREGAR_FERIADO','holidays',hid,f"{day}/{month}/"+('Todos' if holiday_type=='Permanente' else str(year))+f" {dtype} {holiday_type}")
+                    st.rerun()
+                except ValueError:
+                    st.error('La combinación de día y mes indicada no corresponde a una fecha válida.')
+                except Exception:
+                    st.error('Ese feriado ya está configurado. Use Modificar para cambiarlo.')
+
+    hl={r['id']:f"{r['day']:02d}/{r['month']:02d}/"+('Todos' if r['holiday_type']=='Permanente' else str(r['year']))+f" · {r['day_type']} · {r['holiday_type']}" for r in rows}
     with tabs[1]:
         if hl:
-            hid=st.selectbox('Día a modificar',list(hl),format_func=lambda x:hl[x],key='holiday_edit'); r=next(x for x in rows if x['id']==hid)
+            hid=st.selectbox('Día a modificar',list(hl),format_func=lambda x:hl[x],key='holiday_edit')
+            r=next(x for x in rows if x['id']==hid)
+            type_options=['Variable','Permanente']
+            holiday_type=st.selectbox('Tipo de feriado',type_options,index=type_options.index(r['holiday_type']),key='holiday_type_edit')
             with st.form('holiday_edit_form'):
-                c1,c2,c3=st.columns(3); day=c1.number_input('Día',1,31,int(r['day']),key='hday'); months=list(MONTHS_ES); month=c2.selectbox('Mes',months,index=months.index(r['month']),format_func=lambda x:MONTHS_ES[x],key='hmonth'); types=['Feriado','Hábil']; dtype=c3.selectbox('Tipo de día',types,index=types.index(r['day_type']),key='htype')
+                c0,c1,c2,c3=st.columns(4)
+                base_year=int(r['year']) if int(r['year'])>0 else int(default_year)
+                year=c0.number_input('Año',min_value=2000,max_value=2100,value=base_year,step=1,key='hyear',disabled=(holiday_type=='Permanente'),help='Solo aplica a feriados variables.')
+                day=c1.number_input('Día',1,31,int(r['day']),key='hday')
+                months=list(MONTHS_ES)
+                month=c2.selectbox('Mes',months,index=months.index(r['month']),format_func=lambda x:MONTHS_ES[x],key='hmonth')
+                types=['Feriado','Hábil']
+                dtype=c3.selectbox('Tipo de día',types,index=types.index(r['day_type']),key='htype')
                 if st.form_submit_button('Guardar cambios',type='primary'):
+                    store_year=0 if holiday_type=='Permanente' else int(year)
+                    validation_year=2028 if holiday_type=='Permanente' else int(year)
                     try:
-                        execute('UPDATE holidays SET day=?,month=?,day_type=? WHERE id=?',(int(day),int(month),dtype,hid)); audit(user['id'],'MODIFICAR_FERIADO','holidays',hid,f'{day}/{month} {dtype}'); st.rerun()
-                    except Exception: st.error('Ya existe otro registro para ese día y mes.')
+                        date(validation_year,int(month),int(day))
+                        execute('UPDATE holidays SET year=?,day=?,month=?,day_type=?,holiday_type=? WHERE id=?',(store_year,int(day),int(month),dtype,holiday_type,hid))
+                        audit(user['id'],'MODIFICAR_FERIADO','holidays',hid,f"{day}/{month}/"+('Todos' if holiday_type=='Permanente' else str(year))+f" {dtype} {holiday_type}")
+                        st.rerun()
+                    except ValueError:
+                        st.error('La combinación de día y mes indicada no corresponde a una fecha válida.')
+                    except Exception:
+                        st.error('Ya existe otro registro con esa configuración.')
+
     with tabs[2]:
         if hl:
             hid=st.selectbox('Día a eliminar',list(hl),format_func=lambda x:hl[x],key='holiday_delete')
             if st.button('Eliminar día',type='primary'):
-                execute('DELETE FROM holidays WHERE id=?',(hid,)); audit(user['id'],'ELIMINAR_FERIADO','holidays',hid,''); st.rerun()
+                execute('DELETE FROM holidays WHERE id=?',(hid,))
+                audit(user['id'],'ELIMINAR_FERIADO','holidays',hid,'')
+                st.rerun()
 
 def sidebar(user):
     st.sidebar.markdown('## Calendario Académico')
