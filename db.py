@@ -148,10 +148,42 @@ def init_db():
     con.commit(); con.close()
 
 def query(sql, params=()):
-    con=connect(); rows=con.execute(sql,params).fetchall(); con.close(); return rows
+    con=connect()
+    try:
+        rows=con.execute(sql,params).fetchall()
+        con.close()
+        return rows
+    except sqlite3.OperationalError as e:
+        con.close()
+        # Recuperación automática para instalaciones existentes cuya base aún no
+        # contiene una tabla agregada por una versión posterior de la aplicación.
+        if 'no such table' in str(e).lower():
+            init_db()
+            con=connect()
+            try:
+                rows=con.execute(sql,params).fetchall()
+                con.close()
+                return rows
+            except Exception:
+                con.close()
+                raise
+        raise
 
 def execute(sql, params=()):
-    con=connect(); cur=con.execute(sql,params); con.commit(); last=cur.lastrowid; con.close(); return last
+    con=connect()
+    try:
+        cur=con.execute(sql,params); con.commit(); last=cur.lastrowid; con.close(); return last
+    except sqlite3.OperationalError as e:
+        con.close()
+        if 'no such table' in str(e).lower():
+            init_db()
+            con=connect()
+            try:
+                cur=con.execute(sql,params); con.commit(); last=cur.lastrowid; con.close(); return last
+            except Exception:
+                con.close()
+                raise
+        raise
 
 def audit(user_id, action, entity='', entity_id=None, detail=''):
     execute('INSERT INTO audit_log(user_id,action,entity,entity_id,detail,created_at) VALUES(?,?,?,?,?,?)',
